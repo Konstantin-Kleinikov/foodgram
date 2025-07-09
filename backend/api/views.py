@@ -1,31 +1,47 @@
 from django.contrib.auth import get_user_model
-from rest_framework import generics
-from rest_framework.authtoken.models import Token
-from rest_framework.permissions import AllowAny
+from rest_framework import generics, permissions, status
+from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+
+from api.serializers import (FoodgramUserAvatarSerializer, FoodgramUserCreateSerializer,
+                             FoodgramUserListSerializer)
 from rest_framework.views import APIView
 
-from api.authentication import CustomAuthTokenSerializer
-from api.serializers import FoodgramUserCreateSerializer
-
+from backend.api.serializers import FoodgramUserAvatarSerializer
 
 UserModel = get_user_model()
 
 
-class FoodgramUserCreateView(generics.CreateAPIView):
+class FoodgramUserListCreateView(generics.ListCreateAPIView):
     queryset = UserModel.objects.all()
     serializer_class = FoodgramUserCreateSerializer
-    permission_classes = [AllowAny]
+    # permission_classes = [AllowAny]
+
+    def get_serializer_class(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return FoodgramUserListSerializer
+        return FoodgramUserCreateSerializer
 
 
-class CustomObtainAuthToken(APIView):
-    serializer_class = CustomAuthTokenSerializer
-    permission_classes = [AllowAny]
+class FoodgramUserDetailView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = UserModel.objects.all()
+    serializer_class = FoodgramUserListSerializer
 
-    def post(self, request, *args, **kwargs):
-        serializer = self.serializer_class(data=request.data,
-                                           context={'request': request})
-        serializer.is_valid(raise_exception=True)
-        user = serializer.validated_data['user']
-        token, created = Token.objects.get_or_create(user=user)
-        return Response({'auth_token': token.key})
+
+class FoodgramUserMeView(generics.RetrieveAPIView):
+    queryset = UserModel.objects.all()
+    serializer_class = FoodgramUserListSerializer
+
+    def get_object(self):
+        return self.request.user
+
+
+class FoodgramUserAvatarView(APIView):
+    def put(self, request, format=None):
+        user = request.user
+        serializer = FoodgramUserAvatarSerializer(user, data=request.data, partial=True)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)

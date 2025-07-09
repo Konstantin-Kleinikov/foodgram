@@ -34,7 +34,7 @@ class FoodgramUser(AbstractUser):
     # )
     avatar = models.ImageField(
         'Аватар',
-        upload_to='avatars/',
+        upload_to='users/avatars/',
         blank=True,
         null=True,
     )
