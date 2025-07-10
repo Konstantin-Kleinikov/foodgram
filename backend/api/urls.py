@@ -1,8 +1,8 @@
 from django.urls import include, path
-from rest_framework.authtoken import views
 
-from api.views import (FoodgramUserAvatarView, FoodgramUserDetailView, FoodgramUserListCreateView,
-                       FoodgramUserMeView)
+from api.views import (ChangePasswordView, FoodgramUserAvatarView, FoodgramUserDetailView,
+                       FoodgramUserListCreateView, FoodgramUserMeView)
+
 
 urlpatterns = [
     path('auth/', include("djoser.urls.authtoken"), name='api-token-auth'),
@@ -10,4 +10,5 @@ urlpatterns = [
     path('users/me/', FoodgramUserMeView.as_view(), name='user-me'),
     path('users/me/avatar/', FoodgramUserAvatarView.as_view(), name='user-avatar-update'),
     path('users/', FoodgramUserListCreateView.as_view(), name='user-list-create'),
+    path('users/set_password/', ChangePasswordView.as_view(), name='reset-password'),
 ]
