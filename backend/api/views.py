@@ -1,17 +1,18 @@
 import logging
 
 from django.contrib.auth import get_user_model
-from rest_framework import status, viewsets
+from django_filters.rest_framework import DjangoFilterBackend
+from rest_framework import status, viewsets, filters
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from api.models import Tag
+from recipes.models import Tag, Ingredient
 from api.serializers import (FoodgramUserAvatarSerializer,
                              FoodgramUserCreateResponseSerializer,
                              FoodgramUserCreateSerializer,
                              FoodgramUserListSerializer,
-                             PasswordChangeSerializer, TagSerializer)
+                             PasswordChangeSerializer, TagSerializer, IngredientSerializer)
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -126,13 +127,22 @@ class TagViewSet(viewsets.ModelViewSet):
     ordering_fields = ['name', 'id']
     ordering = ['name']
     http_method_names = ['get', 'head', 'options']
+    permission_classes = [AllowAny]
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            permission_classes = [AllowAny]
-        else:
-            permission_classes = [IsAuthenticated]
-        return [permission() for permission in permission_classes]
+    def list(self, request, *args, **kwargs):
+        response = super().list(request, *args, **kwargs)
+        return Response(response.data['results'])
+
+
+class IngredientViewSet(viewsets.ModelViewSet):
+    queryset = Ingredient.objects.all()
+    serializer_class = IngredientSerializer
+    filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    search_fields = ['^name']
+    ordering_fields = ['name']
+    filterset_fields = ['name']
+    http_method_names = ['get', 'head', 'options']
+    permission_classes = [AllowAny]
 
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)

@@ -10,7 +10,7 @@ from rest_framework.validators import UniqueValidator
 
 from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
                            USERNAME_MAX_LENGTH, USERNAME_REGEX)
-from api.models import Tag
+from recipes.models import Tag, Ingredient
 
 UserModel = get_user_model()
 
@@ -161,3 +161,10 @@ class TagSerializer(serializers.ModelSerializer):
         extra_kwargs = {
             'slug': {'required': False}
         }
+
+
+class IngredientSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Ingredient
+        fields = ['id', 'name', 'measurement_unit']
+        read_only_fields = ['id']
