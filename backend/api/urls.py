@@ -1,14 +1,14 @@
 from django.urls import include, path
+from rest_framework.routers import DefaultRouter
 
-from api.views import (ChangePasswordView, FoodgramUserAvatarView, FoodgramUserDetailView,
-                       FoodgramUserListCreateView, FoodgramUserMeView)
+from api.views import FoodgramUserViewSet, TagViewSet
+
+router_v1 = DefaultRouter()
+router_v1.register('users', FoodgramUserViewSet, basename='user')
+router_v1.register('tags', TagViewSet, basename='tag')
 
 
 urlpatterns = [
     path('auth/', include("djoser.urls.authtoken"), name='api-token-auth'),
-    path('users/<int:pk>/', FoodgramUserDetailView.as_view(), name='user-detail'),
-    path('users/me/', FoodgramUserMeView.as_view(), name='user-me'),
-    path('users/me/avatar/', FoodgramUserAvatarView.as_view(), name='user-avatar-update'),
-    path('users/', FoodgramUserListCreateView.as_view(), name='user-list-create'),
-    path('users/set_password/', ChangePasswordView.as_view(), name='reset-password'),
+    path('', include(router_v1.urls)),
 ]
