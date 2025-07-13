@@ -1,8 +1,14 @@
+from django.core.validators import MinValueValidator
 from django.db import models
-
+from django.contrib.auth import get_user_model
+from django.utils.text import Truncator
 from api.constants import (INGREDIENT_MAX_LENGTH, SLUG_MAX_LENGTH,
-                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH)
+                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH, RECIPE_NAME_MAX_LENGTH,
+                           RECIPE_DISPLAY_WORDS_LENGTH)
 from api.validators import slug_validator
+
+
+UserModel = get_user_model()
 
 
 class Tag(models.Model):
@@ -59,3 +65,89 @@ class Ingredient(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
+
+
+class Recipe(models.Model):
+    name = models.CharField(
+        'Название рецепта',
+        max_length=RECIPE_NAME_MAX_LENGTH,
+        help_text=f'Введите название рецепта (до {RECIPE_NAME_MAX_LENGTH} символов)'
+    )
+    image = models.ImageField(
+        'Изображение рецепта',
+        upload_to='recipes/images',
+        null=True,
+        blank=True,
+        help_text='Загрузите изображение рецепта'
+    )
+    text = models.TextField(
+        'Описание',
+        help_text='Введите подробное описание рецепта'
+    )
+    author = models.ForeignKey(
+        UserModel,
+        on_delete=models.CASCADE,
+        verbose_name='Автор рецепта'
+    )
+    ingredients = models.ManyToManyField(
+        Ingredient,
+        through='IngredientRecipe',
+        verbose_name='Ингредиенты'
+    )
+    tags = models.ManyToManyField(
+        Tag,
+        verbose_name='Теги'
+    )
+    cooking_time = models.PositiveSmallIntegerField(
+        'Время приготовления',
+        validators=(MinValueValidator(
+            1, message='Время приготовления не может быть меньше единицы'),),
+        help_text='Укажите время приготовления в минутах'
+    )
+    pub_date = models.DateTimeField(
+        'Дата и время публикации',
+        auto_now_add=True
+    )
+
+    class Meta:
+        verbose_name = 'рецепт'
+        verbose_name_plural = 'Рецепты'
+        ordering = ('-pub_date',)
+        default_related_name = 'recipes'
+
+    def __str__(self) -> str:
+        truncator = Truncator(self.name)
+        return truncator.words(RECIPE_DISPLAY_WORDS_LENGTH, truncate="...")
+
+
+class IngredientRecipe(models.Model):
+    recipe = models.ForeignKey(
+        Recipe,
+        on_delete=models.CASCADE,
+        verbose_name='Рецепт'
+    )
+    ingredient = models.ForeignKey(
+        Ingredient,
+        on_delete=models.CASCADE,
+        verbose_name='Ингредиент'
+    )
+    amount = models.PositiveSmallIntegerField(
+        'Количество',
+        validators=(MinValueValidator(
+            1, message='Кол-во не может быть меньше единицы'),)
+    )
+
+    class Meta:
+        ordering = ('recipe',)
+        verbose_name = 'Ингредиент рецепта'
+        verbose_name_plural = 'Ингредиенты рецепта'
+        default_related_name = 'amount_ingredients'
+        constraints = (
+            models.UniqueConstraint(
+                fields=('recipe', 'ingredient',),
+                name='unique_ingredient'
+            ),
+        )
+
+    def __str__(self) -> str:
+        return f'{self.amount} {self.ingredient}'
