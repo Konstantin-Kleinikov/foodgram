@@ -3,7 +3,7 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
-from api.constants import SLUG_REGEX, USERNAME_REGEX, USERNAME_FORBIDDEN
+from api.constants import SLUG_REGEX, USERNAME_FORBIDDEN, USERNAME_REGEX
 
 
 def username_validator(value):

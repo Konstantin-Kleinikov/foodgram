@@ -10,7 +10,7 @@ from rest_framework.validators import UniqueValidator
 
 from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
                            USERNAME_MAX_LENGTH, USERNAME_REGEX)
-from recipes.models import Tag, Ingredient
+from recipes.models import Ingredient, Tag
 
 UserModel = get_user_model()
 

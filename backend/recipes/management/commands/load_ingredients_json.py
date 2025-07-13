@@ -1,7 +1,11 @@
 import json
 import logging
+from pathlib import Path
+
+from django.conf import settings
 from django.core.management.base import BaseCommand
 from django.db import transaction
+
 from recipes.models import Ingredient
 
 logger = logging.getLogger(__name__)
@@ -20,7 +24,7 @@ class Command(BaseCommand):
     help = 'Загрузка ингредиентов из JSON-файла с использованием bulk_create'
 
     def handle(self, *args, **kwargs):
-        file_path = 'data/ingredients.json'
+        file_path = Path(settings.BASE_DIR).parent / 'data' / 'ingredients.json'
         ingredients_list = []
 
         try:

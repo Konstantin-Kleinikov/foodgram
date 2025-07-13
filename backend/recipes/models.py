@@ -1,6 +1,7 @@
 from django.db import models
 
-from api.constants import SLUG_MAX_LENGTH, TAG_MAX_LENGTH, INGREDIENT_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH
+from api.constants import (INGREDIENT_MAX_LENGTH, SLUG_MAX_LENGTH,
+                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH)
 from api.validators import slug_validator
 
 

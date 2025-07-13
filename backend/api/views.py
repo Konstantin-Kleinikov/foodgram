@@ -2,17 +2,17 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import status, viewsets, filters
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from recipes.models import Tag, Ingredient
 from api.serializers import (FoodgramUserAvatarSerializer,
                              FoodgramUserCreateResponseSerializer,
                              FoodgramUserCreateSerializer,
-                             FoodgramUserListSerializer,
-                             PasswordChangeSerializer, TagSerializer, IngredientSerializer)
+                             FoodgramUserListSerializer, IngredientSerializer,
+                             PasswordChangeSerializer, TagSerializer)
+from recipes.models import Ingredient, Tag
 
 logging.basicConfig(
     level=logging.DEBUG,
