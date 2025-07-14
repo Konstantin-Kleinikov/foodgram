@@ -6,11 +6,10 @@ from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
-from rest_framework.validators import UniqueValidator
 
 from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
                            USERNAME_MAX_LENGTH, USERNAME_REGEX)
-from recipes.models import Ingredient, Tag
+from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
 
 UserModel = get_user_model()
 
@@ -168,3 +167,37 @@ class IngredientSerializer(serializers.ModelSerializer):
         model = Ingredient
         fields = ['id', 'name', 'measurement_unit']
         read_only_fields = ['id']
+
+
+class IngredientRecipeSerializer(serializers.ModelSerializer):
+    id = serializers.IntegerField(source='ingredient.id')
+    name = serializers.CharField(source='ingredient.name')
+    measurement_unit = serializers.CharField(source='ingredient.measurement_unit')
+    amount = serializers.IntegerField()
+
+    class Meta:
+        model = IngredientRecipe
+        fields = ('id', 'name', 'measurement_unit', 'amount')
+
+
+class RecipeListSerializer(serializers.ModelSerializer):
+ tags = TagSerializer(many=True, read_only=True)
+ author = FoodgramUserListSerializer(read_only=True)
+ ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
+ is_favorited = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты
+ is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты
+
+ class Meta:
+     model = Recipe
+     fields = (
+         'id',
+         'tags',
+         'author',
+         'ingredients',
+         'is_favorited',
+         'is_in_shopping_cart',
+         'name',
+         'image',
+         'text',
+         'cooking_time'
+     )

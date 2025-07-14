@@ -1,18 +1,21 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets
+from rest_framework import filters, status, viewsets, permissions
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from api.filters import RecipeFilter
 from api.serializers import (FoodgramUserAvatarSerializer,
                              FoodgramUserCreateResponseSerializer,
                              FoodgramUserCreateSerializer,
                              FoodgramUserListSerializer, IngredientSerializer,
-                             PasswordChangeSerializer, TagSerializer)
-from recipes.models import Ingredient, Tag
+                             PasswordChangeSerializer, RecipeListSerializer,
+                             TagSerializer)
+from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -147,3 +150,61 @@ class IngredientViewSet(viewsets.ModelViewSet):
     def list(self, request, *args, **kwargs):
         response = super().list(request, *args, **kwargs)
         return Response(response.data['results'])
+
+
+class RecipeViewSet(viewsets.ModelViewSet):
+    queryset = Recipe.objects.all()
+    filter_backends = [
+        DjangoFilterBackend,
+        filters.OrderingFilter
+    ]
+    filterset_class = RecipeFilter
+
+    def get_permissions(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            return [permissions.AllowAny()]
+        return [permissions.IsAuthenticated()]
+
+    def get_serializer_class(self):
+        if self.action == 'list':
+            return RecipeListSerializer
+        # elif self.action == 'retrieve':
+        #     return RecipeDetailSerializer
+        # elif self.action == 'create':
+        #     return RecipeCreateSerializer
+        # elif self.action == 'update' or self.action == 'partial_update':
+        #     return RecipeUpdateSerializer
+        # return RecipeDetailSerializer
+
+    def get_queryset(self):
+        return Recipe.objects.prefetch_related(
+            Prefetch('tags', queryset=Tag.objects.all()),
+            Prefetch('author'),
+            Prefetch('ingredients', queryset=Ingredient.objects.all())
+        )
+
+    def perform_create(self, serializer):
+        serializer.save(author=self.request.user)
+
+    def update(self, request, *args, **kwargs):
+        partial = kwargs.pop('partial', False)
+        instance = self.get_object()
+
+        # Проверка прав доступа
+        if instance.author != request.user and not request.user.is_superuser:
+            self.permission_denied(request, message="Только автор может редактировать рецепт")
+
+        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer.is_valid(raise_exception=True)
+        self.perform_update(serializer)
+        return Response(serializer.data)
+
+    def destroy(self, request, *args, **kwargs):
+        instance = self.get_object()
+
+        # Проверка прав доступа
+        if instance.author != request.user and not request.user.is_superuser:
+            self.permission_denied(request, message="Только автор может удалять рецепт")
+
+        self.perform_destroy(instance)
+        return Response(status=status.HTTP_204_NO_CONTENT)

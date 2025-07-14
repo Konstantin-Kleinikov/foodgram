@@ -1,12 +1,12 @@
+from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
 from django.db import models
-from django.contrib.auth import get_user_model
 from django.utils.text import Truncator
-from api.constants import (INGREDIENT_MAX_LENGTH, SLUG_MAX_LENGTH,
-                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH, RECIPE_NAME_MAX_LENGTH,
-                           RECIPE_DISPLAY_WORDS_LENGTH)
-from api.validators import slug_validator
 
+from api.constants import (INGREDIENT_MAX_LENGTH, RECIPE_DISPLAY_WORDS_LENGTH,
+                           RECIPE_NAME_MAX_LENGTH, SLUG_MAX_LENGTH,
+                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH)
+from api.validators import slug_validator
 
 UserModel = get_user_model()
 
