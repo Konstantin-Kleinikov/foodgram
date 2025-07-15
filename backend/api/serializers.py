@@ -1,9 +1,11 @@
 import base64
 import re
+from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
+from PIL import Image
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
@@ -15,11 +17,28 @@ UserModel = get_user_model()
 
 
 class Base64ImageField(serializers.ImageField):
+    # def to_internal_value(self, data):
+    #     if isinstance(data, str) and data.startswith('data:image'):
+    #         format, imgstr = data.split(';base64,')
+    #         ext = format.split('/')[-1]
+    #         data = ContentFile(base64.b64decode(imgstr), name=f'temp.{ext}')
+    #     return super().to_internal_value(data)
     def to_internal_value(self, data):
         if isinstance(data, str) and data.startswith('data:image'):
-            format, imgstr = data.split(';base64,')
-            ext = format.split('/')[-1]
-            data = ContentFile(base64.b64decode(imgstr), name=f'temp.{ext}')
+            try:
+                # Разделяем формат и данные
+                format, imgstr = data.split(';base64,')
+                ext = format.split('/')[-1]
+                # Декодируем base64
+                decoded_data = base64.b64decode(imgstr)
+                # Проверяем, что это действительно изображение
+                image = Image.open(BytesIO(decoded_data))
+                image.verify()
+                image.close()
+                # Создаем файл
+                data = ContentFile(decoded_data, name=f'temp.{ext}')
+            except Exception as e:
+                raise ValidationError(f"Ошибка при обработке изображения: {str(e)}")
         return super().to_internal_value(data)
 
 
@@ -224,3 +243,79 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
             'text',
             'cooking_time'
         )
+
+
+class RecipeCreateSerializer(serializers.ModelSerializer):
+    ingredients = serializers.ListField(
+        child=serializers.DictField(
+            child=serializers.IntegerField(),
+            required=True
+        ),
+        required=True
+    )
+    tags = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=True
+    )
+    image = Base64ImageField(required=True)
+    name = serializers.CharField(required=True)
+    text = serializers.CharField(required=True)
+    cooking_time = serializers.IntegerField(required=True)
+
+    class Meta:
+        model = Recipe
+        fields = [
+            'ingredients',
+            'tags',
+            'image',
+            'name',
+            'text',
+            'cooking_time'
+        ]
+
+    def validate_ingredients(self, value):
+        if not value:
+            raise serializers.ValidationError("Список ингредиентов не может быть пустым")
+        return value
+
+    def validate_cooking_time(self, value):
+        if value < 1:
+            raise serializers.ValidationError("Время приготовления должно быть больше 0")
+        return value
+
+    def validate_image(self, value):
+        if not value:
+            raise serializers.ValidationError("Изображение обязательно для заполнения")
+        return value
+
+    def create(self, validated_data):
+        # Сохраняем рецепт
+        tags = validated_data.pop('tags')
+        ingredients = validated_data.pop('ingredients')
+
+        recipe = Recipe.objects.create(**validated_data)
+
+        # Связываем теги
+        recipe.tags.set(tags)
+
+        # Обрабатываем ингредиенты
+        for ingredient_data in ingredients:
+            ingredient_id = ingredient_data['id']
+            amount = ingredient_data['amount']
+
+            try:
+                ingredient = Ingredient.objects.get(id=ingredient_id)
+            except Ingredient.DoesNotExist:
+                raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
+
+            IngredientRecipe.objects.create(
+                recipe=recipe,
+                ingredient=ingredient,
+                amount=amount
+            )
+
+        return recipe
+
+    def to_representation(self, instance):
+        # Используем существующий RecipeDetailSerializer для корректной сериализации
+        return RecipeDetailSerializer(instance).data
