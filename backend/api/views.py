@@ -3,7 +3,7 @@ import logging
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, status, viewsets, permissions
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -13,8 +13,9 @@ from api.serializers import (FoodgramUserAvatarSerializer,
                              FoodgramUserCreateResponseSerializer,
                              FoodgramUserCreateSerializer,
                              FoodgramUserListSerializer, IngredientSerializer,
-                             PasswordChangeSerializer, RecipeListSerializer,
-                             TagSerializer, RecipeDetailSerializer)
+                             PasswordChangeSerializer, RecipeCreateSerializer,
+                             RecipeDetailSerializer, RecipeListSerializer,
+                             TagSerializer)
 from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
@@ -170,11 +171,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeListSerializer
         elif self.action == 'retrieve':
             return RecipeDetailSerializer
-        # elif self.action == 'create':
-        #     return RecipeCreateSerializer
+        elif self.action == 'create':
+            return RecipeCreateSerializer
         # elif self.action == 'update' or self.action == 'partial_update':
         #     return RecipeUpdateSerializer
-        # return RecipeDetailSerializer
+        return RecipeDetailSerializer
 
     def get_queryset(self):
         return Recipe.objects.prefetch_related(
