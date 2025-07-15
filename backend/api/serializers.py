@@ -201,3 +201,26 @@ class RecipeListSerializer(serializers.ModelSerializer):
          'text',
          'cooking_time'
      )
+
+
+class RecipeDetailSerializer(serializers.ModelSerializer):
+    tags = TagSerializer(many=True, read_only=True)
+    author = FoodgramUserListSerializer(read_only=True)
+    ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
+    is_favorited = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты)
+    is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты)
+
+    class Meta:
+        model = Recipe
+        fields = (
+            'id',
+            'tags',
+            'author',
+            'ingredients',
+            'is_favorited',
+            'is_in_shopping_cart',
+            'name',
+            'image',
+            'text',
+            'cooking_time'
+        )

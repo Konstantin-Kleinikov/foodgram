@@ -14,7 +14,7 @@ from api.serializers import (FoodgramUserAvatarSerializer,
                              FoodgramUserCreateSerializer,
                              FoodgramUserListSerializer, IngredientSerializer,
                              PasswordChangeSerializer, RecipeListSerializer,
-                             TagSerializer)
+                             TagSerializer, RecipeDetailSerializer)
 from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
@@ -163,13 +163,13 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self.request.method in permissions.SAFE_METHODS:
             return [permissions.AllowAny()]
-        return [permissions.IsAuthenticated()]
+        return super().get_permissions()
 
     def get_serializer_class(self):
         if self.action == 'list':
             return RecipeListSerializer
-        # elif self.action == 'retrieve':
-        #     return RecipeDetailSerializer
+        elif self.action == 'retrieve':
+            return RecipeDetailSerializer
         # elif self.action == 'create':
         #     return RecipeCreateSerializer
         # elif self.action == 'update' or self.action == 'partial_update':
