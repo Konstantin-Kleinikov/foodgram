@@ -1,7 +1,9 @@
+import logging
 import re
 
 from django.contrib.auth.models import AbstractUser
 from django.core.exceptions import ValidationError
+from django.core.files.storage import default_storage
 from django.db import models
 
 from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
@@ -48,3 +50,28 @@ class FoodgramUser(AbstractUser):
 
     def __str__(self):
         return self.username
+
+    def remove_avatar(self):
+        try:
+            if self.avatar:
+                # Проверяем существование файла
+                if default_storage.exists(self.avatar.name):
+                    # Удаляем файл из хранилища
+                    default_storage.delete(self.avatar.name)
+                    # Очищаем поле аватара
+                    self.avatar = None
+                    # Сохраняем изменения
+                    self.save()
+                    logging.info(f'Аватар пользователя {self.username} успешно удален')
+                    return True  # Возвращаем True, если аватар был удален
+                else:
+                    logging.warning(f'Файл аватара для пользователя {self.username} не найден')
+            else:
+                logging.warning(f'У пользователя {self.username} нет аватара')
+            return False  # Возвращаем False, если аватар не был удален
+        except ValidationError as ve:
+            logging.error(f'Ошибка валидации при удалении аватара пользователя {self.username}: {str(ve)}')
+            raise ValidationError(f'Ошибка при удалении аватара: {str(ve)}')
+        except Exception as e:
+            logging.error(f'Ошибка при удалении аватара пользователя {self.username}: {str(e)}')
+            raise Exception(f'Произошла ошибка при удалении аватара: {str(e)}')

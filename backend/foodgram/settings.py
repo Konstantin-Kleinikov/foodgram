@@ -146,16 +146,22 @@ MEDIA_ROOT = BASE_DIR / 'media'
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 DJOSER = {
-    "LOGIN_FIELD": "email",
-    "HIDE_USERS": False,
-    # "SERIALIZERS": {
-    #     "user_create": "api.serializers.FoodgramUserCreateSerializer",
-    #     "user": "api.serializers.FoodgramUserListSerializer",
-    #     #"current_user": "api.serializers.UserGetSerializer",
-    # },
-    # "PERMISSIONS": {
-    #     "user_list": ["rest_framework.permissions.AllowAny"],
-    #     "user": ["rest_framework.permissions.AllowAny"],
-    #     "set_password": ["djoser.permissions.CurrentUserOrAdmin"],
-    # },
+    'LOGIN_FIELD': 'email',
+    'HIDE_USERS': False,
+    'PASSWORD_VALIDATORS': [
+        {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
+        {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
+        {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
+        {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}
+    ],
+    'PASSWORD_MIN_LENGTH': 8,
+    'SERIALIZERS': {
+        'user': 'api.serializers.FoodgramUserSerializer',
+        'current_user': 'api.serializers.FoodgramUserSerializer',
+    },
+    'PERMISSIONS': {
+        'user_list': ['rest_framework.permissions.AllowAny'],
+        'user': ['rest_framework.permissions.AllowAny'],
+        'me': ['rest_framework.permissions.IsAuthenticated'],
+    },
 }
