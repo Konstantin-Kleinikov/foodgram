@@ -1,18 +1,15 @@
 import base64
-import re
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.password_validation import validate_password
 from django.core.files.base import ContentFile
-from PIL import Image
 from djoser.serializers import UserSerializer
+from PIL import Image
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
-from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
-                           USERNAME_MAX_LENGTH, USERNAME_REGEX)
 from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
+
 
 UserModel = get_user_model()
 
