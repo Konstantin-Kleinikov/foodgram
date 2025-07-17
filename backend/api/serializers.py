@@ -2,14 +2,15 @@ import base64
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
 from djoser.serializers import UserSerializer
 from PIL import Image
-from rest_framework import serializers
+from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
 
+from api.constants import USERNAME_FORBIDDEN
 from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
-
 
 UserModel = get_user_model()
 
@@ -63,6 +64,33 @@ class FoodgramUserSerializer(UserSerializer):
         if obj.avatar:
             return self.context['request'].build_absolute_uri(obj.avatar.url)
         return None
+
+    def to_representation(self, instance):
+        # Проверяем тип пользователя
+        if isinstance(instance, AnonymousUser):
+            raise exceptions.AuthenticationFailed('Не предоставлены данные для аутентификации')
+        return super().to_representation(instance)
+
+
+class FoodgramUserCreateSerializer(serializers.ModelSerializer):
+    def validate_username(self, value):
+        if value.lower() in USERNAME_FORBIDDEN:
+            raise serializers.ValidationError(f'Указанное значение пользователя "{value}" запрещено')
+        return value
+
+    class Meta:
+        model = UserModel
+        fields = (
+            'email',
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'password'
+        )
+        extra_kwargs = {
+            'password': {'write_only': True}
+        }
 
 
 class FoodgramUserAvatarSerializer(serializers.ModelSerializer):

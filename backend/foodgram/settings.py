@@ -156,6 +156,7 @@ DJOSER = {
     ],
     'PASSWORD_MIN_LENGTH': 8,
     'SERIALIZERS': {
+        'user_create': 'api.serializers.FoodgramUserCreateSerializer',
         'user': 'api.serializers.FoodgramUserSerializer',
         'current_user': 'api.serializers.FoodgramUserSerializer',
     },
