@@ -4,6 +4,7 @@ from io import BytesIO
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
+from django.core.validators import MinValueValidator
 from djoser.serializers import UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
@@ -120,6 +121,21 @@ class IngredientSerializer(serializers.ModelSerializer):
         model = Ingredient
         fields = ['id', 'name', 'measurement_unit']
         read_only_fields = ['id']
+
+
+class IngredientUpdateSerializer(serializers.Serializer):
+    id = serializers.IntegerField(
+        validators=[MinValueValidator(1)],
+        error_messages={
+            'min_value': 'ID ингредиента должен быть положительным'
+        }
+    )
+    amount = serializers.IntegerField(
+        validators=[MinValueValidator(1)],
+        error_messages={
+            'min_value': 'Количество должно быть положительным'
+        }
+    )
 
 
 class IngredientRecipeSerializer(serializers.ModelSerializer):
@@ -249,6 +265,74 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             )
 
         return recipe
+
+    def to_representation(self, instance):
+        # Используем существующий RecipeDetailSerializer для корректной сериализации
+        return RecipeDetailSerializer(instance).data
+
+
+class RecipeUpdateSerializer(serializers.ModelSerializer):
+    ingredients = IngredientUpdateSerializer(many=True, required=True)
+    tags = serializers.ListField(
+        child=serializers.IntegerField(),
+        required=True,
+    )
+    image = Base64ImageField(required=True)
+    name = serializers.CharField(required=True)
+    text = serializers.CharField(required=True)
+    cooking_time = serializers.IntegerField(
+        validators=[MinValueValidator(1)],
+        required=True,
+        error_messages={
+            'min_value': 'Время приготовления должно быть положительным'
+        }
+    )
+
+    class Meta:
+        model = Recipe
+        fields = [
+            'ingredients',
+            'tags',
+            'image',
+            'name',
+            'text',
+            'cooking_time'
+        ]
+
+    def validate_ingredients(self, value):
+        if value:
+            ingredient_ids = [item['id'] for item in value]
+            existing_ids = set(Ingredient.objects.filter(id__in=ingredient_ids).values_list('id', flat=True))
+            if len(ingredient_ids) != len(existing_ids):
+                raise ValidationError('Указаны несуществующие ID ингредиентов')
+        return value
+
+    def validate_tags(self, value):
+        if value:
+            existing_tags = set(Tag.objects.filter(id__in=value).values_list('id', flat=True))
+            if len(value) != len(existing_tags):
+                raise ValidationError('Указаны несуществующие ID тегов')
+        return value
+
+    def update(self, instance, validated_data):
+        # Обработка ингредиентов
+        if 'ingredients' in validated_data:
+            ingredient_data = validated_data.pop('ingredients')
+            instance.ingredients.clear()
+            for item in ingredient_data:
+                ingredient = Ingredient.objects.get(id=item['id'])
+                instance.ingredients.add(ingredient, through_defaults={'amount': item['amount']})
+
+        # Обработка тегов
+        if 'tags' in validated_data:
+            instance.tags.set(validated_data.pop('tags'))
+
+        # Обновление остальных полей
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.save()
+        return instance
 
     def to_representation(self, instance):
         # Используем существующий RecipeDetailSerializer для корректной сериализации

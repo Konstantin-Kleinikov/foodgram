@@ -11,7 +11,7 @@ from api.filters import RecipeFilter
 from api.serializers import (FoodgramUserAvatarSerializer,
                              IngredientSerializer, RecipeCreateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer)
+                             TagSerializer, RecipeUpdateSerializer)
 from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
@@ -109,6 +109,7 @@ class IngredientViewSet(viewsets.ModelViewSet):
         return Response(response.data['results'])
 
 
+
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     filter_backends = [
@@ -129,8 +130,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeDetailSerializer
         elif self.action == 'create':
             return RecipeCreateSerializer
-        # elif self.action == 'update' or self.action == 'partial_update':
-        #     return RecipeUpdateSerializer
+        elif self.action == 'partial_update':
+            return RecipeUpdateSerializer
         return RecipeDetailSerializer
 
     def get_queryset(self):
