@@ -4,13 +4,13 @@ from io import BytesIO
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxLengthValidator, MinLengthValidator
 from djoser.serializers import UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
 
-from api.constants import USERNAME_FORBIDDEN
+from api.constants import USERNAME_FORBIDDEN, MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH
 from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
 
 UserModel = get_user_model()
@@ -62,8 +62,9 @@ class FoodgramUserSerializer(UserSerializer):
 
     def get_avatar(self, obj):
         # Возвращаем URL аватара или None, если нет изображения
-        if obj.avatar:
-            return self.context['request'].build_absolute_uri(obj.avatar.url)
+        request = self.context.get('request')
+        if obj.avatar and request:
+            return request.build_absolute_uri(obj.avatar.url)
         return None
 
     def to_representation(self, instance):
@@ -195,7 +196,7 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
         )
 
 
-class RecipeCreateSerializer(serializers.ModelSerializer):
+class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     ingredients = serializers.ListField(
         child=serializers.DictField(
             child=serializers.IntegerField(),
@@ -208,9 +209,20 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
         required=True
     )
     image = Base64ImageField(required=True)
-    name = serializers.CharField(required=True)
+    name = serializers.CharField(
+        required=True,
+        validators=[
+            MaxLengthValidator(RECIPE_NAME_MAX_LENGTH, message='Название рецепта не может превышать 256 символов'),
+            MinLengthValidator(1, message='Название рецепта не может быть пустым'),
+        ]
+    )
     text = serializers.CharField(required=True)
-    cooking_time = serializers.IntegerField(required=True)
+    cooking_time = serializers.IntegerField(
+        required=True,
+        validators=[
+            MinValueValidator(1, message='Время приготовления должно быть больше 0'),
+        ]
+    )
 
     class Meta:
         model = Recipe
@@ -223,116 +235,140 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
             'cooking_time'
         ]
 
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.is_update = kwargs.get('context', {}).get('is_update', False)
+        if self.is_update:
+            self.fields['ingredients'] = IngredientUpdateSerializer(many=True, required=True)
+
+    def validate(self, attrs):
+        # Проверяем наличие обязательных полей при любом действии
+        if 'ingredients' not in attrs:
+            raise serializers.ValidationError({
+                'ingredients': 'Поле ingredients обязательно для создания и обновления рецепта'
+            })
+
+        if 'tags' not in attrs:
+            raise serializers.ValidationError({
+                'tags': 'Поле tags обязательно для создания и обновления рецепта'
+            })
+
+        return attrs
+
     def validate_ingredients(self, value):
-        if not value:
-            raise serializers.ValidationError("Список ингредиентов не может быть пустым")
+        if self.is_update:
+            # Логика для обновления
+            if value:
+                ingredient_ids = [item['id'] for item in value]
+                existing_ids = set(Ingredient.objects.filter(id__in=ingredient_ids).values_list('id', flat=True))
+                if len(ingredient_ids) != len(existing_ids):
+                    raise serializers.ValidationError('Указаны несуществующие ID ингредиентов')
+        else:
+            # Логика для создания
+            if len(value) > MAX_INGREDIENTS:
+                raise serializers.ValidationError(f'Нельзя добавить более {MAX_INGREDIENTS} ингредиентов в рецепт')
+
+            if not value:
+                raise serializers.ValidationError('Список ингредиентов не может быть пустым')
+
+            ingredient_ids = set()
+            for ingredient in value:
+                if 'amount' not in ingredient:
+                    raise serializers.ValidationError('Отсутствует поле amount у ингредиента')
+                if 'id' not in ingredient:
+                    raise serializers.ValidationError('Отсутствует поле id у ингредиента')
+                ingredient_id = ingredient['id']
+                if ingredient_id in ingredient_ids:
+                    raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} уже добавлен в рецепт')
+                ingredient_ids.add(ingredient_id)
+                try:
+                    Ingredient.objects.get(id=ingredient_id)
+                except Ingredient.DoesNotExist:
+                    raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
+                if ingredient['amount'] <= 0:
+                    raise serializers.ValidationError('Количество ингредиента должно быть больше 0')
         return value
 
-    def validate_cooking_time(self, value):
-        if value < 1:
-            raise serializers.ValidationError("Время приготовления должно быть больше 0")
+    def validate_tags(self, value):
+        if not value:
+            raise serializers.ValidationError('Список тегов не может быть пустым')
+
+        if len(value) > MAX_TAGS:
+            raise serializers.ValidationError(f'Нельзя добавить более {MAX_TAGS} тегов в рецепт')
+
+        if len(value) != len(set(value)):
+            raise serializers.ValidationError('Список тегов содержит повторяющиеся значения')
+
+        existing_tags = set(Tag.objects.filter(id__in=value).values_list('id', flat=True))
+        missing_tags = set(value) - existing_tags
+        if missing_tags:
+            raise serializers.ValidationError(
+                f'Теги с ID {", ".join(map(str, missing_tags))} не найдены в базе данных'
+            )
         return value
 
     def validate_image(self, value):
         if not value:
-            raise serializers.ValidationError("Изображение обязательно для заполнения")
+            raise serializers.ValidationError('Изображение обязательно для заполнения')
         return value
 
     def create(self, validated_data):
-        # Сохраняем рецепт
         tags = validated_data.pop('tags')
         ingredients = validated_data.pop('ingredients')
 
         recipe = Recipe.objects.create(**validated_data)
-
-        # Связываем теги
         recipe.tags.set(tags)
 
-        # Обрабатываем ингредиенты
-        for ingredient_data in ingredients:
-            ingredient_id = ingredient_data['id']
-            amount = ingredient_data['amount']
+        try:
+            for ingredient_data in ingredients:
+                ingredient_id = ingredient_data['id']
+                amount = ingredient_data['amount']
 
-            try:
-                ingredient = Ingredient.objects.get(id=ingredient_id)
-            except Ingredient.DoesNotExist:
-                raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
+                # Добавляем обработку исключения
+                try:
+                    ingredient = Ingredient.objects.get(id=ingredient_id)
+                except Ingredient.DoesNotExist:
+                    raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
 
-            IngredientRecipe.objects.create(
-                recipe=recipe,
-                ingredient=ingredient,
-                amount=amount
-            )
-
+                IngredientRecipe.objects.create(
+                    recipe=recipe,
+                    ingredient=ingredient,
+                    amount=amount
+                )
+        except Exception as e:
+            # Откатываем изменения при ошибке
+            recipe.delete()
+            raise serializers.ValidationError(f"Ошибка при создании рецепта: {str(e)}")
         return recipe
 
-    def to_representation(self, instance):
-        # Используем существующий RecipeDetailSerializer для корректной сериализации
-        return RecipeDetailSerializer(instance).data
-
-
-class RecipeUpdateSerializer(serializers.ModelSerializer):
-    ingredients = IngredientUpdateSerializer(many=True, required=True)
-    tags = serializers.ListField(
-        child=serializers.IntegerField(),
-        required=True,
-    )
-    image = Base64ImageField(required=True)
-    name = serializers.CharField(required=True)
-    text = serializers.CharField(required=True)
-    cooking_time = serializers.IntegerField(
-        validators=[MinValueValidator(1)],
-        required=True,
-        error_messages={
-            'min_value': 'Время приготовления должно быть положительным'
-        }
-    )
-
-    class Meta:
-        model = Recipe
-        fields = [
-            'ingredients',
-            'tags',
-            'image',
-            'name',
-            'text',
-            'cooking_time'
-        ]
-
-    def validate_ingredients(self, value):
-        if value:
-            ingredient_ids = [item['id'] for item in value]
-            existing_ids = set(Ingredient.objects.filter(id__in=ingredient_ids).values_list('id', flat=True))
-            if len(ingredient_ids) != len(existing_ids):
-                raise ValidationError('Указаны несуществующие ID ингредиентов')
-        return value
-
-    def validate_tags(self, value):
-        if value:
-            existing_tags = set(Tag.objects.filter(id__in=value).values_list('id', flat=True))
-            if len(value) != len(existing_tags):
-                raise ValidationError('Указаны несуществующие ID тегов')
-        return value
-
     def update(self, instance, validated_data):
-        # Обработка ингредиентов
-        if 'ingredients' in validated_data:
-            ingredient_data = validated_data.pop('ingredients')
-            instance.ingredients.clear()
-            for item in ingredient_data:
-                ingredient = Ingredient.objects.get(id=item['id'])
-                instance.ingredients.add(ingredient, through_defaults={'amount': item['amount']})
+        try:
+            if 'ingredients' in validated_data:
+                ingredient_data = validated_data.pop('ingredients')
+                instance.ingredients.clear()
 
-        # Обработка тегов
-        if 'tags' in validated_data:
-            instance.tags.set(validated_data.pop('tags'))
+                for item in ingredient_data:
+                    ingredient_id = item['id']
+                    amount = item['amount']
 
-        # Обновление остальных полей
-        for attr, value in validated_data.items():
-            setattr(instance, attr, value)
+                    # Добавляем обработку исключения
+                    try:
+                        ingredient = Ingredient.objects.get(id=ingredient_id)
+                    except Ingredient.DoesNotExist:
+                        raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
 
-        instance.save()
-        return instance
+                    instance.ingredients.add(ingredient, through_defaults={'amount': amount})
+
+            if 'tags' in validated_data:
+                instance.tags.set(validated_data.pop('tags'))
+
+            for attr, value in validated_data.items():
+                setattr(instance, attr, value)
+
+            instance.save()
+            return instance
+        except Exception as e:
+            raise serializers.ValidationError(f"Ошибка при обновлении рецепта: {str(e)}")
 
     def to_representation(self, instance):
         # Используем существующий RecipeDetailSerializer для корректной сериализации

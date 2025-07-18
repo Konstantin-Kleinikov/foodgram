@@ -9,9 +9,9 @@ from rest_framework.response import Response
 
 from api.filters import RecipeFilter
 from api.serializers import (FoodgramUserAvatarSerializer,
-                             IngredientSerializer, RecipeCreateSerializer,
+                             IngredientSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer, RecipeUpdateSerializer)
+                             TagSerializer, RecipeCreateUpdateSerializer)
 from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
@@ -128,10 +128,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return RecipeListSerializer
         elif self.action == 'retrieve':
             return RecipeDetailSerializer
-        elif self.action == 'create':
-            return RecipeCreateSerializer
-        elif self.action == 'partial_update':
-            return RecipeUpdateSerializer
+        elif self.action == 'create' or self.action == 'partial_update':
+            return RecipeCreateUpdateSerializer
         return RecipeDetailSerializer
 
     def get_queryset(self):
