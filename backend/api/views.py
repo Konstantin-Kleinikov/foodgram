@@ -1,17 +1,21 @@
 import logging
 
 from django.contrib.auth import get_user_model
+from django.core.cache import cache
 from django.db.models import Prefetch
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, mixins, permissions, status, viewsets
+from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.filters import RecipeFilter
 from api.serializers import (FoodgramUserAvatarSerializer,
                              IngredientSerializer,
+                             RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer, RecipeCreateUpdateSerializer)
+                             TagSerializer)
+from api.utils import encode_base62
 from recipes.models import Ingredient, Recipe, Tag
 
 logging.basicConfig(
@@ -164,3 +168,30 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True, methods=['get'], url_path='get-link')
+    def get_link(self, request, pk=None):
+        try:
+            # Проверяем формат ID
+            if not pk.isdigit():
+                return Response({'error': f'ID должен содержать только цифры, а не {pk}'}, status=status.HTTP_400_BAD_REQUEST)
+            recipe = self.get_object()
+            prefix = 'r-'  # префикс для безопасности
+            short_code = encode_base62(recipe.id)
+            base_url = request.build_absolute_uri('/')
+            short_url = f"{base_url}s/{prefix}{short_code}"
+
+            cache_key = f'recipe_short_link_{recipe.id}'
+            cached_link = cache.get(cache_key)
+
+            if not cached_link:
+                cache.set(cache_key, short_url, timeout=60 * 60 * 24)
+
+            return Response({
+                "short-link": short_url
+            }, status=status.HTTP_200_OK)
+
+        except Exception as e:
+            return Response({
+                "error": str(e)
+            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

@@ -4,13 +4,15 @@ from io import BytesIO
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
-from django.core.validators import MinValueValidator, MaxLengthValidator, MinLengthValidator
+from django.core.validators import (MaxLengthValidator, MinLengthValidator,
+                                    MinValueValidator)
 from djoser.serializers import UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
 
-from api.constants import USERNAME_FORBIDDEN, MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH
+from api.constants import (MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH,
+                           USERNAME_FORBIDDEN)
 from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
 
 UserModel = get_user_model()
