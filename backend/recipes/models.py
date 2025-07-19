@@ -172,3 +172,42 @@ class Favorite(models.Model):
 
     def __str__(self):
         return f'{self.user.username} - {self.recipe.name}'
+
+
+class Follow(models.Model):
+    user = models.ForeignKey(
+        UserModel,
+        on_delete=models.CASCADE,
+        verbose_name='Кто подписан',
+        related_name='followers',
+    )
+    following = models.ForeignKey(
+        UserModel,
+        on_delete=models.CASCADE,
+        verbose_name='На кого подписан',
+        related_name='following',
+    )
+
+    class Meta:
+        verbose_name = 'подписка'
+        verbose_name_plural = 'Подписки'
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'following'],
+                name='unique_user_following',
+            ),
+            models.CheckConstraint(
+                check=~models.Q(user=models.F('following')),
+                name='prevent_self_follow'
+            ),
+        ]
+        ordering = ['user__username', 'following__username', 'id']
+        indexes = [
+            models.Index(
+                fields=['user', 'following'],
+            )
+        ]
+
+    def __str__(self):
+        return (f'Пользователь: {self.user}, подписан на '
+                f'автора: {self.following}.')

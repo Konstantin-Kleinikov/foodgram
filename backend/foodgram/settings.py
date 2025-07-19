@@ -84,8 +84,13 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
-    'DEFAULT_PAGINATION_CLASS': 'api.paginations.PageSizeLimitPagination',
-    'PAGE_SIZE': 6,
+    'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
+    'PAGE_SIZE': 10,
+    'DEFAULT_LIMIT': 10,  # лимит по умолчанию
+    'MAX_LIMIT': 100,     # максимальный лимит
+    'LIMIT_QUERY_PARAM': 'limit',  # параметр для указания лимита
+    'OFFSET_QUERY_PARAM': 'offset',  # параметр для указания смещения
+    'ENFORCE_LIMITS': True,
 }
 
 # Database
@@ -165,4 +170,11 @@ DJOSER = {
         'user': ['rest_framework.permissions.AllowAny'],
         'me': ['rest_framework.permissions.IsAuthenticated'],
     },
+}
+
+CACHES = {
+    'default': {
+        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
+        'LOCATION': 'unique-snowflake'
+    }
 }

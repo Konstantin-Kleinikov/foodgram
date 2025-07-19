@@ -13,7 +13,7 @@ from rest_framework.exceptions import ValidationError
 
 from api.constants import (MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH,
                            USERNAME_FORBIDDEN)
-from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag
+from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag, Follow
 
 UserModel = get_user_model()
 
@@ -375,3 +375,67 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     def to_representation(self, instance):
         # Используем существующий RecipeDetailSerializer для корректной сериализации
         return RecipeDetailSerializer(instance).data
+
+
+class FavoriteRecipeSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = ['id', 'name', 'image', 'cooking_time']
+
+
+class RecipeShortSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Recipe
+        fields = (
+            'id',
+            'name',
+            'image',
+            'cooking_time'
+        )
+
+
+class UserFollowSerializer(serializers.ModelSerializer):
+    is_subscribed = serializers.SerializerMethodField()
+    recipes = RecipeShortSerializer(many=True, read_only=True)
+    recipes_count = serializers.IntegerField(read_only=True, default=0, allow_null=False)
+    avatar = serializers.ImageField(read_only=True)
+
+    class Meta:
+        model = UserModel
+        fields = (
+            'email',
+            'id',
+            'username',
+            'first_name',
+            'last_name',
+            'is_subscribed',
+            'recipes',
+            'recipes_count',
+            'avatar'
+        )
+
+    def get_is_subscribed(self, obj):
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Follow.objects.filter(
+                user=request.user,
+                following=obj
+            ).exists()
+        return False
+
+    def to_representation(self, instance):
+        representation = super().to_representation(instance)
+
+        # Получаем параметры пагинации из контекста
+        limit = self.context.get('limit')
+
+        if limit is not None:
+            # Применяем пагинацию к рецептам
+            paginated_recipes = list(instance.recipes.all()[:limit])
+            representation['recipes'] = RecipeShortSerializer(
+                paginated_recipes,
+                many=True,
+                context=self.context
+            ).data
+
+        return representation

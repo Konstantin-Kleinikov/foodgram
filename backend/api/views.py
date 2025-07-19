@@ -2,21 +2,24 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.db.models import Prefetch
+from django.db.models import Prefetch, Count
+from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import filters, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
+from api.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from api.filters import RecipeFilter
 from api.serializers import (FoodgramUserAvatarSerializer,
                              IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer)
+                             TagSerializer, FavoriteRecipeSerializer, UserFollowSerializer)
 from api.utils import encode_base62
-from recipes.models import Ingredient, Recipe, Tag
+from recipes.models import Ingredient, Recipe, Tag, Favorite, Follow
 
 logging.basicConfig(
     level=logging.DEBUG,
@@ -185,7 +188,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
             cached_link = cache.get(cache_key)
 
             if not cached_link:
-                cache.set(cache_key, short_url, timeout=60 * 60 * 24)
+                cache.set(cache_key, short_url, timeout=TIMEOUT_FOR_SHORT_LINK_CAСHES)
 
             return Response({
                 "short-link": short_url
@@ -195,3 +198,118 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response({
                 "error": str(e)
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+class FavoriteViewSet(mixins.CreateModelMixin,
+                     mixins.DestroyModelMixin,
+                     viewsets.GenericViewSet):
+    permission_classes = [IsAuthenticated]
+    serializer_class = FavoriteRecipeSerializer
+
+    def get_queryset(self):
+        return Recipe.objects.select_related('image').all()
+
+    def create(self, request, *args, **kwargs):
+        user = request.user
+        recipe_id = kwargs.get('recipe_id')  # Получаем recipe_id из kwargs
+        recipe = get_object_or_404(Recipe, id=recipe_id)
+
+        # Проверка на автора рецепта
+        if recipe.author == user:
+            return Response({'detail': 'Нельзя подписаться на свой рецепт'},
+                           status=status.HTTP_400_BAD_REQUEST)
+
+        # Проверка на существование связи
+        if Favorite.objects.filter(user=user, recipe=recipe).exists():
+            return Response({'detail': 'Рецепт уже в избранном'},
+                           status=status.HTTP_400_BAD_REQUEST)
+
+        # Создание связи
+        Favorite.objects.create(user=user, recipe=recipe)
+        serializer = self.get_serializer(recipe)
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    def destroy(self, request, *args, **kwargs):
+        user = request.user
+        recipe_id = kwargs.get('recipe_id')  # Получаем recipe_id из kwargs
+        recipe = get_object_or_404(Recipe, id=recipe_id)
+        # Проверка прав доступа
+        if user == recipe.author:
+            return Response(
+                {'detail': 'Нельзя удалять подписку на свой рецепт'},
+                status=status.HTTP_403_FORBIDDEN
+            )
+        try:
+            favorite = Favorite.objects.get(user=user, recipe=recipe)
+            favorite.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Favorite.DoesNotExist:
+            return Response({'detail': 'Рецепт не найден в избранном'},
+                            status=status.HTTP_400_BAD_REQUEST)
+
+
+class FollowViewSet(viewsets.GenericViewSet):
+    permission_classes = [permissions.IsAuthenticated]
+    queryset = UserModel.objects.all()
+    serializer_class = UserFollowSerializer
+    #pagination_class = LimitOffsetPagination
+
+    def get_queryset(self):
+        return UserModel.objects.annotate(
+            recipes_count=Count('recipes')
+        ).prefetch_related('recipes')
+
+    @action(detail=False, methods=['get'])
+    def subscriptions(self, request):
+        user = request.user
+        subscriptions = user.following.all()
+
+        # Получаем параметры пагинации
+        limit = request.query_params.get('limit')
+
+        try:
+            limit = int(limit) if limit else None
+        except ValueError:
+            limit = None
+
+        page = self.paginate_queryset(subscriptions)
+        if page is not None:
+            serializer = self.get_serializer(
+                page,
+                many=True,
+                context={
+                    'request': request,
+                    'limit': limit
+                }
+            )
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(
+            subscriptions,
+            many=True,
+            context={
+                'request': request,
+                'limit': limit
+            }
+        )
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post'])
+    def subscribe(self, request, user_id):
+        user_to_follow = get_object_or_404(UserModel, id=user_id)
+        if user_to_follow == request.user:
+            return Response({'detail': 'Нельзя подписаться на самого себя'}, status=status.HTTP_400_BAD_REQUEST)
+
+        if Follow.objects.filter(user=request.user, following=user_to_follow).exists():
+            return Response({'detail': 'Вы уже подписаны на этого пользователя'}, status=status.HTTP_400_BAD_REQUEST)
+
+        Follow.objects.create(user=request.user, following=user_to_follow)
+        serializer = self.get_serializer(user_to_follow, context={'request': request})
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @subscribe.mapping.delete
+    def unsubscribe(self, request, user_id):
+        user_to_follow = get_object_or_404(UserModel, id=user_id)
+        follow = get_object_or_404(Follow, user=request.user, following=user_to_follow)
+        follow.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)

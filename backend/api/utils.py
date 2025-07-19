@@ -12,6 +12,7 @@ def encode_base62(num):
     arr.reverse()
     return ''.join(arr)
 
+
 def decode_base62(short_code):
     alphabet = string.ascii_letters + string.digits
     num = 0
