@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 
 from api.short_url_views import redirect_short_link
 from api.views import (FoodgramUserAvatarViewSet, IngredientViewSet,
-                       RecipeViewSet, TagViewSet, FavoriteViewSet, FollowListViewSet, FollowView)
+                       RecipeViewSet, TagViewSet, FavoriteViewSet, FollowListViewSet, FollowView, ShoppingCartViewSet)
 
 router_v1 = DefaultRouter()
 router_v1.register('tags', TagViewSet, basename='tag')
@@ -30,6 +30,8 @@ urlpatterns = [
         "users/<int:user_id>/subscribe/",
         FollowView.as_view(),
     ),
+    path('recipes/<int:pk>/shopping_cart/', ShoppingCartViewSet.as_view({'post': 'create', 'delete': 'destroy'})),
+    path('recipes/download_shopping_cart/', ShoppingCartViewSet.as_view({'get': 'download_xml'})),
     path('', include(router_v1.urls)),
     path('', include("djoser.urls")),
 ]

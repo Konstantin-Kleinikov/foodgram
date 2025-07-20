@@ -19,13 +19,13 @@ class RecipeFilter(filters.FilterSet):
         fields = ['is_favorited', 'is_in_shopping_cart', 'author', 'tags']
 
     def filter_is_favorited(self, queryset, name, value):
-        if value and self.request.user.is_authenticated:  # Добавляем проверку на None
+        if value and self.request.user and self.request.user.is_authenticated:  # Добавляем проверку на None
             return queryset.filter(favorites__user=self.request.user)
         return queryset
 
     def filter_is_in_shopping_cart(self, queryset, name, value):
-        if value and self.request.user.is_authenticated:  # Добавляем проверку на None
-            return queryset.filter(shopping_cart__user=self.request.user)
+        if value and self.request.user and self.request.user.is_authenticated:  # Добавляем проверку на None
+            return queryset.filter(carts__user=self.request.user)
         return queryset
 
     def filter_tags(self, queryset, name, value):
@@ -35,5 +35,5 @@ class RecipeFilter(filters.FilterSet):
 
     def filter_queryset(self, queryset):
         queryset = queryset.select_related('author')
-        queryset = queryset.prefetch_related('tags')  # TODO добавить is_favorited и is_in_shopping_cart после создания моделей
+        queryset = queryset.prefetch_related('tags')
         return super().filter_queryset(queryset)

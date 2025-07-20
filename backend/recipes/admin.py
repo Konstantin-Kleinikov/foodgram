@@ -2,7 +2,7 @@ from django.contrib import admin
 from django.db.models import Count
 from django.utils.html import format_html
 
-from recipes.models import Favorite, Ingredient, IngredientRecipe, Recipe, Tag, Follow
+from recipes.models import Favorite, Ingredient, IngredientRecipe, Recipe, Tag, Follow, ShoppingCart
 
 
 @admin.register(Tag)
@@ -88,3 +88,21 @@ class FollowAdmin(admin.ModelAdmin):
     def following_display(self, obj):
         return obj.following.username
     following_display.short_description = 'На кого подписан'
+
+
+@admin.register(ShoppingCart)
+class ShoppingCartAdmin(admin.ModelAdmin):
+    list_display = ('id', 'user_display', 'recipe_name')
+    search_fields = ('user__username', 'recipe__name')
+    list_filter = ('user',)
+    list_select_related = ('user', 'recipe')
+    readonly_fields = ('id',)
+
+    def user_display(self, obj):
+        return obj.user.username
+    user_display.short_description = 'Пользователь'
+
+    def recipe_name(self, obj):
+        return obj.recipe.name
+    recipe_name.short_description = 'Рецепт'
+    recipe_name.admin_order_field = 'recipe__name'

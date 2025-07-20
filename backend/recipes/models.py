@@ -214,3 +214,35 @@ class Follow(models.Model):
     def __str__(self):
         return (f'Пользователь: {self.user}, подписан на '
                 f'автора: {self.following}.')
+
+
+class ShoppingCart(models.Model):
+    """Модель списка покупок."""
+
+    user = models.ForeignKey(
+        UserModel,
+        verbose_name='Пользователь',
+        on_delete=models.CASCADE,
+        related_name='carts',
+    )
+    recipe = models.ForeignKey(
+        Recipe,
+        verbose_name='Рецепт',
+        on_delete=models.CASCADE,
+        related_name='carts',
+    )
+
+    class Meta:
+        verbose_name = 'список покупок'
+        verbose_name_plural = 'Списки покупок'
+        ordering = ['user', 'recipe', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'recipe'],
+                name='unique_user_cart',
+            )
+        ]
+
+    def __str__(self):
+        truncator = Truncator(self.recipe.name)
+        return f'{self.user.username} - {truncator.words(RECIPE_DISPLAY_WORDS_LENGTH, truncate="...")}'

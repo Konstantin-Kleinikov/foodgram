@@ -14,7 +14,7 @@ from rest_framework.validators import UniqueTogetherValidator
 
 from api.constants import (MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH,
                            USERNAME_FORBIDDEN, MIN_RECIPES_LIMIT, MAX_RECIPES_LIMIT)
-from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag, Follow
+from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag, Follow, ShoppingCart, Favorite
 
 UserModel = get_user_model()
 
@@ -154,26 +154,48 @@ class IngredientRecipeSerializer(serializers.ModelSerializer):
 
 
 class RecipeListSerializer(serializers.ModelSerializer):
- tags = TagSerializer(many=True, read_only=True)
- author = FoodgramUserSerializer(read_only=True)
- ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
- is_favorited = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты
- is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты
+    tags = TagSerializer(many=True, read_only=True)
+    author = FoodgramUserSerializer(read_only=True)
+    ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
+    is_favorited = serializers.SerializerMethodField(
+        read_only=True,
+    )
+    is_in_shopping_cart = serializers.SerializerMethodField(
+     read_only=True,
+    )
 
- class Meta:
-     model = Recipe
-     fields = (
-         'id',
-         'tags',
-         'author',
-         'ingredients',
-         'is_favorited',
-         'is_in_shopping_cart',
-         'name',
-         'image',
-         'text',
-         'cooking_time'
-     )
+    class Meta:
+        model = Recipe
+        fields = (
+            'id',
+            'tags',
+            'author',
+            'ingredients',
+            'is_favorited',
+            'is_in_shopping_cart',
+            'name',
+            'image',
+            'text',
+            'cooking_time'
+        )
+
+    def get_is_favorited(self, obj):
+        """Проверить наличие рецепта в избранном."""
+        request = self.context.get("request")
+        return (
+            request
+            and request.user.is_authenticated
+            and Favorite.objects.filter(user=request.user, recipe=obj).exists()
+        )
+
+    def get_is_in_shopping_cart(self, obj):
+        """Проверить наличие рецепта в списке покупок."""
+        request = self.context.get("request")
+        return (
+            request
+            and request.user.is_authenticated
+            and ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
+        )
 
 
 class RecipeDetailSerializer(serializers.ModelSerializer):
@@ -492,3 +514,17 @@ class UserFollowUpdateSerializer(serializers.ModelSerializer):
             instance.following,
             context={'request': request}
         ).data
+
+
+class ShoppingCartSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = ShoppingCart
+        fields = ['id', 'user', 'recipe']
+        read_only_fields = ['user']
+
+    def validate_recipe(self, value):
+        try:
+            Recipe.objects.get(pk=value.pk)
+            return value
+        except Recipe.DoesNotExist:
+            raise serializers.ValidationError("Рецепт не найден")
