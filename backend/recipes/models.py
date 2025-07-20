@@ -87,16 +87,19 @@ class Recipe(models.Model):
     author = models.ForeignKey(
         UserModel,
         on_delete=models.CASCADE,
-        verbose_name='Автор рецепта'
+        verbose_name='Автор рецепта',
+        related_name='recipes'
     )
     ingredients = models.ManyToManyField(
         Ingredient,
         through='IngredientRecipe',
-        verbose_name='Ингредиенты'
+        verbose_name='Ингредиенты',
+        related_name='recipes'
     )
     tags = models.ManyToManyField(
         Tag,
-        verbose_name='Теги'
+        verbose_name='Теги',
+        related_name = 'recipes'
     )
     cooking_time = models.PositiveSmallIntegerField(
         'Время приготовления',
@@ -113,7 +116,7 @@ class Recipe(models.Model):
         verbose_name = 'рецепт'
         verbose_name_plural = 'Рецепты'
         ordering = ('-pub_date',)
-        default_related_name = 'recipes'
+        # default_related_name = 'recipes'
 
     def __str__(self) -> str:
         truncator = Truncator(self.name)

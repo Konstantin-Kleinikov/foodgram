@@ -6,7 +6,7 @@ from users.models import FoodgramUser
 
 @admin.register(FoodgramUser)
 class FoodgramAdmin(admin.ModelAdmin):
-    list_display = ['username', 'email', 'full_name', 'last_login', 'is_active',]
+    list_display = ['id', 'username', 'email', 'full_name', 'last_login', 'is_active',]
     list_editable = ('is_active',)
     list_filter = ['is_superuser', 'is_staff', 'is_active']
     search_fields = ['username', 'email']

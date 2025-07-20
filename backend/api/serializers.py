@@ -10,9 +10,10 @@ from djoser.serializers import UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
+from rest_framework.validators import UniqueTogetherValidator
 
 from api.constants import (MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH,
-                           USERNAME_FORBIDDEN)
+                           USERNAME_FORBIDDEN, MIN_RECIPES_LIMIT, MAX_RECIPES_LIMIT)
 from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag, Follow
 
 UserModel = get_user_model()
@@ -34,7 +35,7 @@ class Base64ImageField(serializers.ImageField):
                 # Создаем файл
                 data = ContentFile(decoded_data, name=f'temp.{ext}')
             except Exception as e:
-                raise ValidationError(f"Ошибка при обработке изображения: {str(e)}")
+                raise ValidationError(f'Ошибка при обработке изображения: {str(e)}')
         return super().to_internal_value(data)
 
 
@@ -55,11 +56,11 @@ class FoodgramUserSerializer(UserSerializer):
         )
 
     def get_is_subscribed(self, obj):
-        # Здесь ваша логика для проверки подписки
-        # Пример:
-        # request = self.context.get('request')  # TODO
-        # if request and request.user.is_authenticated:
-        #     return request.user.subscriptions.filter(id=obj.id).exists()
+        request = self.context.get('request')
+        if request and request.user.is_authenticated:
+            return Follow.objects.filter(
+                user=request.user,  # кто подписан (текущий пользователь)
+            ).exists()
         return False
 
     def get_avatar(self, obj):
@@ -101,7 +102,7 @@ class FoodgramUserAvatarSerializer(serializers.ModelSerializer):
     avatar = Base64ImageField(
         required=False,
         allow_null=True,
-        help_text="Формат изображения: PNG, JPG, JPEG"
+        help_text='Формат изображения: PNG, JPG, JPEG'
     )
 
     class Meta:
@@ -330,7 +331,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                 try:
                     ingredient = Ingredient.objects.get(id=ingredient_id)
                 except Ingredient.DoesNotExist:
-                    raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
+                    raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
 
                 IngredientRecipe.objects.create(
                     recipe=recipe,
@@ -340,7 +341,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         except Exception as e:
             # Откатываем изменения при ошибке
             recipe.delete()
-            raise serializers.ValidationError(f"Ошибка при создании рецепта: {str(e)}")
+            raise serializers.ValidationError(f'Ошибка при создании рецепта: {str(e)}')
         return recipe
 
     def update(self, instance, validated_data):
@@ -357,7 +358,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                     try:
                         ingredient = Ingredient.objects.get(id=ingredient_id)
                     except Ingredient.DoesNotExist:
-                        raise serializers.ValidationError(f"Ингредиент с ID {ingredient_id} не найден")
+                        raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
 
                     instance.ingredients.add(ingredient, through_defaults={'amount': amount})
 
@@ -370,7 +371,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             instance.save()
             return instance
         except Exception as e:
-            raise serializers.ValidationError(f"Ошибка при обновлении рецепта: {str(e)}")
+            raise serializers.ValidationError(f'Ошибка при обновлении рецепта: {str(e)}')
 
     def to_representation(self, instance):
         # Используем существующий RecipeDetailSerializer для корректной сериализации
@@ -394,11 +395,12 @@ class RecipeShortSerializer(serializers.ModelSerializer):
         )
 
 
-class UserFollowSerializer(serializers.ModelSerializer):
+class UserFollowSerializer(FoodgramUserSerializer):
+    """Сериализатор получения информации о подписке текущего пользователя."""
+
     is_subscribed = serializers.SerializerMethodField()
-    recipes = RecipeShortSerializer(many=True, read_only=True)
-    recipes_count = serializers.IntegerField(read_only=True, default=0, allow_null=False)
-    avatar = serializers.ImageField(read_only=True)
+    recipes = serializers.SerializerMethodField()
+    recipes_count = serializers.SerializerMethodField()
 
     class Meta:
         model = UserModel
@@ -411,31 +413,82 @@ class UserFollowSerializer(serializers.ModelSerializer):
             'is_subscribed',
             'recipes',
             'recipes_count',
-            'avatar'
+            'avatar',
         )
+        read_only_fields = (
+            'email',
+            'username',
+            'first_name',
+            'last_name',
+            'is_subscribed',
+            'recipes',
+            'recipes_count',
+            'avatar',
+        )
+
+    def get_recipes(self, obj):
+        request = self.context.get('request')
+
+        # Получаем параметры с валидацией
+        try:
+            recipes_limit = int(request.query_params.get('recipes_limit', 0))
+            limit = int(request.query_params.get('limit', 0))
+        except ValueError:
+            return []
+
+        if recipes_limit:
+            limit = min(max(recipes_limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT)
+        elif limit:
+            limit = min(max(limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT)
+        else:
+            limit = MAX_RECIPES_LIMIT  # По умолчанию возвращаем максимум
+
+        # Оптимизированный запрос с лимитом
+        recipes = obj.recipes.all()[:limit]
+
+        return RecipeShortSerializer(
+            recipes,
+            many=True,
+            context={'request': request}
+        ).data
+
+    def get_recipes_count(self, obj):
+        # Кэшируем результат, чтобы избежать лишних запросов
+        if not hasattr(obj, '_recipes_count'):
+            obj._recipes_count = obj.recipes.count()
+        return obj._recipes_count
 
     def get_is_subscribed(self, obj):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
+            # Оптимизированная проверка подписки
             return Follow.objects.filter(
                 user=request.user,
                 following=obj
             ).exists()
         return False
 
+
+class UserFollowUpdateSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = Follow
+        fields = "__all__"
+        validators = [
+            UniqueTogetherValidator(
+                queryset=Follow.objects.all(),
+                fields=("user", "following"),
+                message="Вы уже подписаны на этого пользователя"
+            )
+        ]
+
+    def validate(self, data):
+        if data['user'] == data['following']:
+            raise serializers.ValidationError("Нельзя подписаться на самого себя!")
+        return data
+
     def to_representation(self, instance):
-        representation = super().to_representation(instance)
-
-        # Получаем параметры пагинации из контекста
-        limit = self.context.get('limit')
-
-        if limit is not None:
-            # Применяем пагинацию к рецептам
-            paginated_recipes = list(instance.recipes.all()[:limit])
-            representation['recipes'] = RecipeShortSerializer(
-                paginated_recipes,
-                many=True,
-                context=self.context
-            ).data
-
-        return representation
+        request = self.context.get("request")
+        return UserFollowSerializer(
+            instance.following,
+            context={'request': request}
+        ).data

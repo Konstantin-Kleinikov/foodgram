@@ -5,11 +5,13 @@ from django.core.cache import cache
 from django.db.models import Prefetch, Count
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, mixins, permissions, status, viewsets
+from rest_framework import filters, mixins, permissions, status, viewsets, generics
 from rest_framework.decorators import action
+from rest_framework.exceptions import NotFound
 from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
+from rest_framework.views import APIView
 
 from api.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from api.filters import RecipeFilter
@@ -17,7 +19,7 @@ from api.serializers import (FoodgramUserAvatarSerializer,
                              IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer, FavoriteRecipeSerializer, UserFollowSerializer)
+                             TagSerializer, FavoriteRecipeSerializer, UserFollowSerializer, UserFollowUpdateSerializer)
 from api.utils import encode_base62
 from recipes.models import Ingredient, Recipe, Tag, Favorite, Follow
 
@@ -248,68 +250,43 @@ class FavoriteViewSet(mixins.CreateModelMixin,
                             status=status.HTTP_400_BAD_REQUEST)
 
 
-class FollowViewSet(viewsets.GenericViewSet):
-    permission_classes = [permissions.IsAuthenticated]
-    queryset = UserModel.objects.all()
+class FollowListViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """Получение списка всех подписок на пользователей."""
+
     serializer_class = UserFollowSerializer
-    #pagination_class = LimitOffsetPagination
 
     def get_queryset(self):
-        return UserModel.objects.annotate(
-            recipes_count=Count('recipes')
-        ).prefetch_related('recipes')
+        return UserModel.objects.filter(following__user=self.request.user)
 
-    @action(detail=False, methods=['get'])
-    def subscriptions(self, request):
-        user = request.user
-        subscriptions = user.following.all()
 
-        # Получаем параметры пагинации
-        limit = request.query_params.get('limit')
+class FollowView(generics.GenericAPIView):
+    serializer_class = UserFollowUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated]
 
-        try:
-            limit = int(limit) if limit else None
-        except ValueError:
-            limit = None
-
-        page = self.paginate_queryset(subscriptions)
-        if page is not None:
-            serializer = self.get_serializer(
-                page,
-                many=True,
-                context={
-                    'request': request,
-                    'limit': limit
-                }
-            )
-            return self.get_paginated_response(serializer.data)
+    def post(self, request, user_id):
+        author = get_object_or_404(UserModel, id=user_id)
 
         serializer = self.get_serializer(
-            subscriptions,
-            many=True,
-            context={
-                'request': request,
-                'limit': limit
-            }
+            data={
+                'user': request.user.id,  # Добавляем ID текущего пользователя
+                'following': author.id
+            },
+            context={'request': request}
         )
-        return Response(serializer.data)
 
-    @action(detail=True, methods=['post'])
-    def subscribe(self, request, user_id):
-        user_to_follow = get_object_or_404(UserModel, id=user_id)
-        if user_to_follow == request.user:
-            return Response({'detail': 'Нельзя подписаться на самого себя'}, status=status.HTTP_400_BAD_REQUEST)
+        if serializer.is_valid():
+            serializer.save(user=request.user)
+            return Response(serializer.data, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        if Follow.objects.filter(user=request.user, following=user_to_follow).exists():
-            return Response({'detail': 'Вы уже подписаны на этого пользователя'}, status=status.HTTP_400_BAD_REQUEST)
+    def delete(self, request, user_id):
+        try:
+            follow = Follow.objects.get(
+                user=request.user,
+                following_id=user_id
+            )
+            follow.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        except Follow.DoesNotExist:
+            raise NotFound("Подписка не найдена")
 
-        Follow.objects.create(user=request.user, following=user_to_follow)
-        serializer = self.get_serializer(user_to_follow, context={'request': request})
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    @subscribe.mapping.delete
-    def unsubscribe(self, request, user_id):
-        user_to_follow = get_object_or_404(UserModel, id=user_id)
-        follow = get_object_or_404(Follow, user=request.user, following=user_to_follow)
-        follow.delete()
-        return Response(status=status.HTTP_204_NO_CONTENT)
