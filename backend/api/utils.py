@@ -1,8 +1,8 @@
 import string
-from xml.etree.ElementTree import Element, SubElement, tostring
 from xml.dom import minidom
-from django.utils import timezone
+from xml.etree.ElementTree import Element, SubElement, tostring
 
+from django.utils import timezone
 
 
 def encode_base62(num):

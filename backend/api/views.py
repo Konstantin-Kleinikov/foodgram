@@ -2,36 +2,31 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.core.exceptions import ObjectDoesNotExist
-from django.db.models import Prefetch, Count
+from django.db.models import Count, Prefetch
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import filters, mixins, permissions, status, viewsets, generics
+from rest_framework import (filters, generics, mixins, permissions, status,
+                            viewsets)
 from rest_framework.decorators import action
-from rest_framework.exceptions import NotFound
-from rest_framework.pagination import LimitOffsetPagination
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
-from rest_framework.views import APIView
 
 from api.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from api.filters import RecipeFilter
-from api.serializers import (FoodgramUserAvatarSerializer,
+from api.serializers import (FavoriteRecipeSerializer,
+                             FoodgramUserAvatarSerializer,
                              IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
-                             TagSerializer, FavoriteRecipeSerializer, UserFollowSerializer, UserFollowUpdateSerializer,
-                             ShoppingCartSerializer, RecipeShortSerializer)
-from api.utils import encode_base62, create_shopping_cart_xml
-from recipes.models import Ingredient, Recipe, Tag, Favorite, Follow, ShoppingCart
+                             RecipeShortSerializer, ShoppingCartSerializer,
+                             TagSerializer, UserFollowSerializer,
+                             UserFollowUpdateSerializer)
+from api.utils import create_shopping_cart_xml, encode_base62
+from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
+                            Tag)
 
-logging.basicConfig(
-    level=logging.DEBUG,
-    filename='main.log',
-    filemode='w',
-    encoding='utf-8'
-)
+logger = logging.getLogger(__name__)
 
 UserModel = get_user_model()
 
@@ -85,7 +80,7 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         except Exception as e:
-            logging.error(f"Ошибка при удалении аватара для пользователя {instance.id}: {str(e)}")
+            logger.error(f"Ошибка при удалении аватара для пользователя {instance.id}: {str(e)}")
             return Response(
                 {'detail': 'Ошибка при удалении аватара'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR

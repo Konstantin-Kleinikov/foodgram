@@ -3,7 +3,8 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
-from api.constants import SLUG_REGEX, USERNAME_REGEX, USERNAME_FORBIDDEN, PASSWORD_MAX_LENGTH
+from api.constants import (PASSWORD_MAX_LENGTH, SLUG_REGEX, USERNAME_FORBIDDEN,
+                           USERNAME_REGEX)
 
 slug_validator = RegexValidator(
     regex=SLUG_REGEX,

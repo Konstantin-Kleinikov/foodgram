@@ -2,7 +2,8 @@ from django.contrib import admin
 from django.db.models import Count
 from django.utils.html import format_html
 
-from recipes.models import Favorite, Ingredient, IngredientRecipe, Recipe, Tag, Follow, ShoppingCart
+from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
+                            Recipe, ShoppingCart, Tag)
 
 
 @admin.register(Tag)

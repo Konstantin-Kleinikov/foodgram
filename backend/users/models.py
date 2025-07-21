@@ -6,7 +6,6 @@ from django.core.files.storage import default_storage
 from django.db import models
 
 from api.constants import (EMAIL_MAX_LENGTH, NAME_MAX_LENGTH,
-                           USERNAME_FORBIDDEN,
                            USERNAME_MAX_LENGTH)
 from api.validators import username_validator
 

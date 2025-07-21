@@ -6,15 +6,17 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
 from django.core.validators import (MaxLengthValidator, MinLengthValidator,
                                     MinValueValidator)
-from djoser.serializers import UserSerializer, UserCreateSerializer
+from djoser.serializers import UserCreateSerializer, UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueTogetherValidator
 
-from api.constants import (MAX_INGREDIENTS, MAX_TAGS, RECIPE_NAME_MAX_LENGTH,
-                           USERNAME_FORBIDDEN, MIN_RECIPES_LIMIT, MAX_RECIPES_LIMIT)
-from recipes.models import Ingredient, IngredientRecipe, Recipe, Tag, Follow, ShoppingCart, Favorite
+from api.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
+                           MIN_RECIPES_LIMIT, RECIPE_NAME_MAX_LENGTH,
+                           USERNAME_FORBIDDEN)
+from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
+                            Recipe, ShoppingCart, Tag)
 
 UserModel = get_user_model()
 
