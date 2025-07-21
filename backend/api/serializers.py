@@ -6,7 +6,7 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
 from django.core.validators import (MaxLengthValidator, MinLengthValidator,
                                     MinValueValidator)
-from djoser.serializers import UserSerializer
+from djoser.serializers import UserSerializer, UserCreateSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
@@ -77,13 +77,21 @@ class FoodgramUserSerializer(UserSerializer):
         return super().to_representation(instance)
 
 
-class FoodgramUserCreateSerializer(serializers.ModelSerializer):
+class FoodgramUserCreateSerializer(UserCreateSerializer):
     def validate_username(self, value):
         if value.lower() in USERNAME_FORBIDDEN:
             raise serializers.ValidationError(f'Указанное значение пользователя "{value}" запрещено')
         return value
 
-    class Meta:
+    def validate(self, data):
+        # Проверяем обязательные поля
+        if not data.get('first_name'):
+            raise serializers.ValidationError({'first_name': ('Это поле обязательно')})
+        if not data.get('last_name'):
+            raise serializers.ValidationError({'last_name': ('Это поле обязательно')})
+        return data
+
+    class Meta(UserCreateSerializer.Meta):
         model = UserModel
         fields = (
             'email',
