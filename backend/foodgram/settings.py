@@ -204,17 +204,22 @@ LOGGING = {
     },
     'handlers': {
         'rotating_file': {
-            'level': 'DEBUG',  # Все уровни логирования
+            'level': 'DEBUG',
             'class': 'logging.handlers.RotatingFileHandler',
             'filename': os.path.join(LOG_DIR, 'app.log'),
             'maxBytes': 1024 * 1024 * 5,  # 5 МБ на файл
             'backupCount': 5,  # Храним 5 последних файлов
             'formatter': 'verbose',
         },
+        'console': {
+            'level': 'DEBUG',
+            'class': 'logging.StreamHandler',
+            'formatter': 'verbose',
+        },
     },
     'loggers': {
         'django': {
-            'handlers': ['rotating_file'],  # Только файл
+            'handlers': ['rotating_file', 'console'] if DEBUG else ['rotating_file'],
             'level': 'INFO' if DEBUG else 'INFO',
             'propagate': True,
         },
