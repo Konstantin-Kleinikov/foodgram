@@ -39,7 +39,6 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
     permission_classes = [IsAuthenticated]
 
     def get_object(self):
-        # Возвращаем текущего авторизованного пользователя
         return self.request.user
 
     def update(self, request, *args, **kwargs):
@@ -67,13 +66,11 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         try:
-            # Здесь обрабатываем удаление только аватара
             if hasattr(instance, 'remove_avatar'):
                 avatar_deleted = instance.remove_avatar()
                 if avatar_deleted:
                     return Response(status=status.HTTP_204_NO_CONTENT)
 
-            # Если метод remove_avatar не существует или вернул False
             instance.avatar.delete()  # Удаляем файл аватара
             instance.avatar = None  # Очищаем поле в базе данных
             instance.save()
@@ -153,7 +150,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
         partial = kwargs.pop('partial', False)
         instance = self.get_object()
 
-        # Проверка прав доступа
         if instance.author != request.user and not request.user.is_superuser:
             self.permission_denied(request, message="Только автор может редактировать рецепт")
 
@@ -165,7 +161,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
 
-        # Проверка прав доступа
         if instance.author != request.user and not request.user.is_superuser:
             self.permission_denied(request, message="Только автор может удалять рецепт")
 
@@ -175,7 +170,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
         try:
-            # Проверяем формат ID
             if not pk.isdigit():
                 return Response({'error': f'ID должен содержать только цифры, а не {pk}'}, status=status.HTTP_400_BAD_REQUEST)
             recipe = self.get_object()
@@ -214,17 +208,14 @@ class FavoriteViewSet(mixins.CreateModelMixin,
         recipe_id = kwargs.get('recipe_id')  # Получаем recipe_id из kwargs
         recipe = get_object_or_404(Recipe, id=recipe_id)
 
-        # Проверка на автора рецепта
         if recipe.author == user:
             return Response({'detail': 'Нельзя подписаться на свой рецепт'},
                            status=status.HTTP_400_BAD_REQUEST)
 
-        # Проверка на существование связи
         if Favorite.objects.filter(user=user, recipe=recipe).exists():
             return Response({'detail': 'Рецепт уже в избранном'},
                            status=status.HTTP_400_BAD_REQUEST)
 
-        # Создание связи
         Favorite.objects.create(user=user, recipe=recipe)
         serializer = self.get_serializer(recipe)
         return Response(serializer.data, status=status.HTTP_201_CREATED)

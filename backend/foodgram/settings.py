@@ -210,6 +210,7 @@ LOGGING = {
             'maxBytes': 1024 * 1024 * 5,  # 5 МБ на файл
             'backupCount': 5,  # Храним 5 последних файлов
             'formatter': 'verbose',
+            'encoding': 'utf-8',
         },
         'console': {
             'level': 'DEBUG',

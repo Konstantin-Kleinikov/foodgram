@@ -1,7 +1,7 @@
 from django_filters import BaseInFilter, CharFilter
 from django_filters import rest_framework as filters
 
-from recipes.models import Recipe, Tag
+from recipes.models import Recipe
 
 
 class CharListFilter(BaseInFilter, CharFilter):
@@ -12,7 +12,7 @@ class RecipeFilter(filters.FilterSet):
     is_favorited = filters.BooleanFilter(method='filter_is_favorited')
     is_in_shopping_cart = filters.BooleanFilter(method='filter_is_in_shopping_cart')
     author = filters.NumberFilter(field_name='author__id', lookup_expr='exact')
-    tags = CharListFilter(field_name='tags__slug', lookup_expr='in')
+    tags = filters.AllValuesMultipleFilter(field_name='tags__slug')
 
     class Meta:
         model = Recipe
@@ -26,11 +26,6 @@ class RecipeFilter(filters.FilterSet):
     def filter_is_in_shopping_cart(self, queryset, name, value):
         if value and self.request.user and self.request.user.is_authenticated:  # Добавляем проверку на None
             return queryset.filter(carts__user=self.request.user)
-        return queryset
-
-    def filter_tags(self, queryset, name, value):
-        if value:
-            return queryset.filter(tags__slug__in=value).distinct()
         return queryset
 
     def filter_queryset(self, queryset):
