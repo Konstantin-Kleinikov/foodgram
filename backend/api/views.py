@@ -121,8 +121,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter
     ]
     filterset_class = RecipeFilter
+    # lookup_field = 'pk'
 
     def get_permissions(self):
+        if self.request.user.is_superuser:
+            return [permissions.AllowAny()]
         if self.request.method in permissions.SAFE_METHODS:
             return [permissions.AllowAny()]
         return super().get_permissions()

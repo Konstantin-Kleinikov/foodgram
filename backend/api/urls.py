@@ -43,16 +43,10 @@ user_urls_v1 = [
     ),
 ]
 
-# Короткие ссылки
-short_urls_v1 = [
-    path('<str:short_code>/', redirect_short_link, name='short-link-redirect'),
-]
-
 urlpatterns = [
-    path('auth/', include("djoser.urls.authtoken"), name='api-token-auth'),
+    path('auth/', include('djoser.urls.authtoken'), name='api-token-auth'),
     path('recipes/', include((recipe_urls_v1, 'recipes'))),
     path('users/', include((user_urls_v1, 'users'))),
-    path('short/', include((short_urls_v1, 'short-links'))),
     path('', include(router_v1.urls)),
-    path('', include("djoser.urls")),
+    path('', include('djoser.urls')),
 ]

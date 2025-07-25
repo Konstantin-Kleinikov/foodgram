@@ -19,7 +19,6 @@ from api.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
-
 logger = logging.getLogger(__name__)
 
 UserModel = get_user_model()
@@ -92,9 +91,9 @@ class FoodgramUserCreateSerializer(UserCreateSerializer):
     def validate(self, data):
         # Проверяем обязательные поля
         if not data.get('first_name'):
-            raise serializers.ValidationError({'first_name': ('Это поле обязательно')})
+            raise serializers.ValidationError({'first_name': 'Это поле обязательно'})
         if not data.get('last_name'):
-            raise serializers.ValidationError({'last_name': ('Это поле обязательно')})
+            raise serializers.ValidationError({'last_name': 'Это поле обязательно'})
         return data
 
     class Meta(UserCreateSerializer.Meta):
@@ -216,8 +215,12 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = FoodgramUserSerializer(read_only=True)
     ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
-    is_favorited = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты)
-    is_in_shopping_cart = serializers.BooleanField(read_only=True, default=False)  # TODO Убрать дефолты)
+    is_favorited = serializers.SerializerMethodField(
+        read_only=True,
+    )
+    is_in_shopping_cart = serializers.SerializerMethodField(
+     read_only=True,
+    )
 
     class Meta:
         model = Recipe
@@ -232,6 +235,24 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
             'image',
             'text',
             'cooking_time'
+        )
+
+    def get_is_favorited(self, obj):
+        """Проверить наличие рецепта в избранном."""
+        request = self.context.get("request")
+        return (
+            request
+            and request.user.is_authenticated
+            and Favorite.objects.filter(user=request.user, recipe=obj).exists()
+        )
+
+    def get_is_in_shopping_cart(self, obj):
+        """Проверить наличие рецепта в списке покупок."""
+        request = self.context.get('request')
+        return (
+            request
+            and request.user.is_authenticated
+            and ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
         )
 
 
