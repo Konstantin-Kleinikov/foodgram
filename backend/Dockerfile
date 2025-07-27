@@ -1,6 +1,6 @@
 # Создать образ на основе базового слоя,
 # который содержит файлы ОС и интерпретатор Python 3.9.
-FROM python:3.9
+FROM python:3.9-slim
 
 # Переходим в образе в директорию /app: в ней будем хранить код проекта.
 # Если директории с указанным именем нет, она будет создана.
@@ -22,6 +22,11 @@ RUN pip install -r requirements.txt --no-cache-dir
 # той директории локального компьютера, где сохранён Dockerfile,
 # в текущую рабочую директорию образа — /app.
 COPY . .
+
+# Устанавливаем дополнительные зависимости
+RUN apt-get update && \
+    apt-get install -y python3-dev && \
+    ln -sf /usr/bin/python3 /usr/bin/python
 
 # Запускаем gunicorn в образе
 CMD ["gunicorn", "--bind", "0.0.0.0:8000", "foodgram.wsgi"]
