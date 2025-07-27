@@ -2,9 +2,11 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
+from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
-from django.http import HttpResponse
+from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.views import View
 from django_filters.rest_framework import DjangoFilterBackend
 from rest_framework import (filters, generics, mixins, permissions, status,
                             viewsets)
@@ -415,3 +417,13 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
                 {'detail': 'Рецепт не найден в списке покупок'},
                 status=status.HTTP_400_BAD_REQUEST
             )
+
+
+class PublicRecipeDetailView(View):
+    def get(self, request, pk):
+        try:
+            get_object_or_404(Recipe, id=pk)
+            return HttpResponseRedirect(f'/recipes/{pk}/')
+        except ObjectDoesNotExist:
+            logger.error(f"Рецепт с ID {pk} не найден")
+            return HttpResponseRedirect('/404/')

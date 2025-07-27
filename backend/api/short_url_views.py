@@ -1,8 +1,7 @@
 import logging
 
 from django.core.exceptions import ObjectDoesNotExist
-from django.http import HttpResponseNotFound
-from django.shortcuts import redirect
+from django.http import HttpResponseNotFound, HttpResponseRedirect
 from django.urls import reverse
 
 from api.utils import decode_base62
@@ -33,9 +32,11 @@ def redirect_short_link(request, short_code):
             raise Recipe.DoesNotExist("Рецепт не найден")
 
         # Перенаправление
-        return redirect(reverse(
-            'recipe-detail',
-            kwargs={'pk': recipe_id})
+        return HttpResponseRedirect(
+            reverse(
+                'public-recipe-detail',
+                kwargs={'pk': recipe_id}
+            )
         )
 
     except (ValueError, Recipe.DoesNotExist) as e:
