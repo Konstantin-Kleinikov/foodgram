@@ -4,7 +4,6 @@ volumes:
   pg_data:
   static:
   media:
-  frontend_static:
 
 services:
   db:
@@ -25,7 +24,7 @@ services:
   frontend:
     env_file: .env
     image: kkleinikov/foodgram-frontend
-    command: cp -r /app/build/static/ /static/
+    command: cp -r /app/build/. /static/
     volumes:
       - static:/static
 
@@ -37,7 +36,6 @@ services:
     volumes:
       - static:/static
       - media:/app/media/
-      - frontend_static:/frontend_static
     depends_on:
       - backend
       - frontend
