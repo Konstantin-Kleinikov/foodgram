@@ -40,7 +40,9 @@ class Base64ImageField(serializers.ImageField):
                 # Создаем файл
                 data = ContentFile(decoded_data, name=f'temp.{ext}')
             except Exception as e:
-                raise ValidationError(f'Ошибка при обработке изображения: {str(e)}')
+                raise ValidationError(
+                    f'Ошибка при обработке изображения: {str(e)}'
+                )
         return super().to_internal_value(data)
 
 
@@ -78,22 +80,30 @@ class FoodgramUserSerializer(UserSerializer):
     def to_representation(self, instance):
         # Проверяем тип пользователя
         if isinstance(instance, AnonymousUser):
-            raise exceptions.AuthenticationFailed('Не предоставлены данные для аутентификации')
+            raise exceptions.AuthenticationFailed(
+                'Не предоставлены данные для аутентификации'
+            )
         return super().to_representation(instance)
 
 
 class FoodgramUserCreateSerializer(UserCreateSerializer):
     def validate_username(self, value):
         if value.lower() in USERNAME_FORBIDDEN:
-            raise serializers.ValidationError(f'Указанное значение пользователя "{value}" запрещено')
+            raise serializers.ValidationError(
+                f'Указанное значение пользователя "{value}" запрещено'
+            )
         return value
 
     def validate(self, data):
         # Проверяем обязательные поля
         if not data.get('first_name'):
-            raise serializers.ValidationError({'first_name': 'Это поле обязательно'})
+            raise serializers.ValidationError(
+                {'first_name': 'Это поле обязательно'}
+            )
         if not data.get('last_name'):
-            raise serializers.ValidationError({'last_name': 'Это поле обязательно'})
+            raise serializers.ValidationError(
+                {'last_name': 'Это поле обязательно'}
+            )
         return data
 
     class Meta(UserCreateSerializer.Meta):
@@ -158,7 +168,9 @@ class IngredientUpdateSerializer(serializers.Serializer):
 class IngredientRecipeSerializer(serializers.ModelSerializer):
     id = serializers.IntegerField(source='ingredient.id')
     name = serializers.CharField(source='ingredient.name')
-    measurement_unit = serializers.CharField(source='ingredient.measurement_unit')
+    measurement_unit = serializers.CharField(
+        source='ingredient.measurement_unit'
+    )
     amount = serializers.IntegerField()
 
     class Meta:
@@ -169,12 +181,16 @@ class IngredientRecipeSerializer(serializers.ModelSerializer):
 class RecipeListSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = FoodgramUserSerializer(read_only=True)
-    ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
+    ingredients = IngredientRecipeSerializer(
+        many=True,
+        read_only=True,
+        source='amount_ingredients'
+    )
     is_favorited = serializers.SerializerMethodField(
         read_only=True,
     )
     is_in_shopping_cart = serializers.SerializerMethodField(
-     read_only=True,
+        read_only=True,
     )
 
     class Meta:
@@ -194,11 +210,12 @@ class RecipeListSerializer(serializers.ModelSerializer):
 
     def get_is_favorited(self, obj):
         """Проверить наличие рецепта в избранном."""
-        request = self.context.get("request")
+        request = self.context.get('request')
         return (
             request
             and request.user.is_authenticated
-            and Favorite.objects.filter(user=request.user, recipe=obj).exists()
+            and Favorite.objects.filter(user=request.user, recipe=obj)
+            .exists()
         )
 
     def get_is_in_shopping_cart(self, obj):
@@ -207,19 +224,24 @@ class RecipeListSerializer(serializers.ModelSerializer):
         return (
             request
             and request.user.is_authenticated
-            and ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
+            and ShoppingCart.objects.filter(user=request.user, recipe=obj)
+            .exists()
         )
 
 
 class RecipeDetailSerializer(serializers.ModelSerializer):
     tags = TagSerializer(many=True, read_only=True)
     author = FoodgramUserSerializer(read_only=True)
-    ingredients = IngredientRecipeSerializer(many=True, read_only=True, source='amount_ingredients')
+    ingredients = IngredientRecipeSerializer(
+        many=True,
+        read_only=True,
+        source='amount_ingredients'
+    )
     is_favorited = serializers.SerializerMethodField(
         read_only=True,
     )
     is_in_shopping_cart = serializers.SerializerMethodField(
-     read_only=True,
+        read_only=True,
     )
 
     class Meta:
@@ -239,11 +261,12 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
 
     def get_is_favorited(self, obj):
         """Проверить наличие рецепта в избранном."""
-        request = self.context.get("request")
+        request = self.context.get('request')
         return (
             request
             and request.user.is_authenticated
-            and Favorite.objects.filter(user=request.user, recipe=obj).exists()
+            and Favorite.objects.filter(user=request.user, recipe=obj)
+            .exists()
         )
 
     def get_is_in_shopping_cart(self, obj):
@@ -252,7 +275,8 @@ class RecipeDetailSerializer(serializers.ModelSerializer):
         return (
             request
             and request.user.is_authenticated
-            and ShoppingCart.objects.filter(user=request.user, recipe=obj).exists()
+            and ShoppingCart.objects.filter(user=request.user, recipe=obj)
+            .exists()
         )
 
 
@@ -272,15 +296,24 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
     name = serializers.CharField(
         required=True,
         validators=[
-            MaxLengthValidator(RECIPE_NAME_MAX_LENGTH, message='Название рецепта не может превышать 256 символов'),
-            MinLengthValidator(1, message='Название рецепта не может быть пустым'),
+            MaxLengthValidator(
+                RECIPE_NAME_MAX_LENGTH,
+                message='Название рецепта не может превышать 256 символов'
+            ),
+            MinLengthValidator(
+                1,
+                message='Название рецепта не может быть пустым'
+            ),
         ]
     )
     text = serializers.CharField(required=True)
     cooking_time = serializers.IntegerField(
         required=True,
         validators=[
-            MinValueValidator(1, message='Время приготовления должно быть больше 0'),
+            MinValueValidator(
+                1,
+                message='Время приготовления должно быть больше 0'
+            ),
         ]
     )
 
@@ -299,17 +332,22 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         super().__init__(*args, **kwargs)
         self.is_update = kwargs.get('context', {}).get('is_update', False)
         if self.is_update:
-            self.fields['ingredients'] = IngredientUpdateSerializer(many=True, required=True)
+            self.fields['ingredients'] = IngredientUpdateSerializer(
+                many=True,
+                required=True
+            )
 
     def validate(self, attrs):
         if 'ingredients' not in attrs:
             raise serializers.ValidationError({
-                'ingredients': 'Поле ingredients обязательно для создания и обновления рецепта'
+                'ingredients': 'Поле ingredients обязательно для создания '
+                               'и обновления рецепта'
             })
 
         if 'tags' not in attrs:
             raise serializers.ValidationError({
-                'tags': 'Поле tags обязательно для создания и обновления рецепта'
+                'tags': 'Поле tags обязательно для создания '
+                        'и обновления рецепта'
             })
 
         return attrs
@@ -319,61 +357,97 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             # Логика для обновления
             if value:
                 ingredient_ids = [item['id'] for item in value]
-                existing_ids = set(Ingredient.objects.filter(id__in=ingredient_ids).values_list('id', flat=True))
+                existing_ids = set(
+                    Ingredient.objects.filter(id__in=ingredient_ids)
+                    .values_list('id', flat=True)
+                )
                 if len(ingredient_ids) != len(existing_ids):
-                    raise serializers.ValidationError('Указаны несуществующие ID ингредиентов')
+                    raise serializers.ValidationError(
+                        'Указаны несуществующие ID ингредиентов'
+                    )
         else:
             # Логика для создания
             if len(value) > MAX_INGREDIENTS:
-                raise serializers.ValidationError(f'Нельзя добавить более {MAX_INGREDIENTS} ингредиентов в рецепт')
+                raise serializers.ValidationError(
+                    f'Нельзя добавить более {MAX_INGREDIENTS} '
+                    'ингредиентов в рецепт'
+                )
 
             if not value:
-                raise serializers.ValidationError('Список ингредиентов не может быть пустым')
+                raise serializers.ValidationError(
+                    'Список ингредиентов не может быть пустым'
+                )
 
             ingredient_ids = set()
             for ingredient in value:
                 if 'amount' not in ingredient:
-                    raise serializers.ValidationError('Отсутствует поле amount у ингредиента')
+                    raise serializers.ValidationError(
+                        'Отсутствует поле amount у ингредиента'
+                    )
                 if 'id' not in ingredient:
-                    raise serializers.ValidationError('Отсутствует поле id у ингредиента')
+                    raise serializers.ValidationError(
+                        'Отсутствует поле id у ингредиента'
+                    )
                 ingredient_id = ingredient['id']
                 if ingredient_id in ingredient_ids:
-                    raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} уже добавлен в рецепт')
+                    raise serializers.ValidationError(
+                        f'Ингредиент с ID {ingredient_id} уже добавлен '
+                        'в рецепт'
+                    )
                 ingredient_ids.add(ingredient_id)
                 try:
                     Ingredient.objects.get(id=ingredient_id)
                 except Ingredient.DoesNotExist:
-                    raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
+                    raise serializers.ValidationError(
+                        f'Ингредиент с ID {ingredient_id} не найден'
+                    )
                 if ingredient['amount'] <= 0:
-                    raise serializers.ValidationError('Количество ингредиента должно быть больше 0')
+                    raise serializers.ValidationError(
+                        'Количество ингредиента должно быть больше 0'
+                    )
         return value
 
     def validate_tags(self, value):
         if not value:
-            raise serializers.ValidationError('Список тегов не может быть пустым')
+            raise serializers.ValidationError(
+                'Список тегов не может быть пустым'
+            )
 
         if len(value) > MAX_TAGS:
-            raise serializers.ValidationError(f'Нельзя добавить более {MAX_TAGS} тегов в рецепт')
+            raise serializers.ValidationError(
+                f'Нельзя добавить более {MAX_TAGS} тегов в рецепт'
+            )
 
         if len(value) != len(set(value)):
-            raise serializers.ValidationError('Список тегов содержит повторяющиеся значения')
+            raise serializers.ValidationError(
+                'Список тегов содержит повторяющиеся значения'
+            )
 
-        existing_tags = set(Tag.objects.filter(id__in=value).values_list('id', flat=True))
+        existing_tags = set(
+            Tag.objects.filter(id__in=value).values_list(
+                'id', flat=True
+            )
+        )
         missing_tags = set(value) - existing_tags
         if missing_tags:
             raise serializers.ValidationError(
-                f'Теги с ID {", ".join(map(str, missing_tags))} не найдены в базе данных'
+                f'Теги с ID {", ".join(map(str, missing_tags))} не найдены '
+                'в базе данных'
             )
         return value
 
     def validate_image(self, value):
         if not value:
-            raise serializers.ValidationError('Изображение обязательно для заполнения')
+            raise serializers.ValidationError(
+                'Изображение обязательно для заполнения'
+            )
         return value
 
     def create(self, validated_data):
         try:
-            logger.info(f'Начинаем создание рецепта с данными: {validated_data}')
+            logger.info(
+                f'Начинаем создание рецепта с данными: {validated_data}'
+            )
             tags = validated_data.pop('tags')
             ingredients = validated_data.pop('ingredients')
 
@@ -391,8 +465,12 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
                     try:
                         ingredient = Ingredient.objects.get(id=ingredient_id)
                     except Ingredient.DoesNotExist:
-                        logger.error(f'Ингредиент с ID {ingredient_id} не найден')
-                        raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
+                        logger.error(
+                            f'Ингредиент с ID {ingredient_id} не найден'
+                        )
+                        raise serializers.ValidationError(
+                            f'Ингредиент с ID {ingredient_id} не найден'
+                        )
 
                     IngredientRecipe.objects.create(
                         recipe=recipe,
@@ -402,23 +480,36 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
             except Exception as e:
                 recipe.delete()
                 logger.error(f'Ошибка при создании рецепта: {str(e)}')
-                raise serializers.ValidationError(f'Ошибка при создании рецепта: {str(e)}')
+                raise serializers.ValidationError(
+                    f'Ошибка при создании рецепта: {str(e)}'
+                )
             logger.info(f'Рецепт успешно создан с ID: {recipe.id}')
             return recipe
         except Exception as e:
-            logger.critical(f'Критическая ошибка при создании рецепта: {str(e)}')
-            raise serializers.ValidationError(f'Произошла критическая ошибка: {str(e)}')
+            logger.critical(
+                f'Критическая ошибка при создании рецепта: {str(e)}'
+            )
+            raise serializers.ValidationError(
+                f'Произошла критическая ошибка: {str(e)}'
+            )
 
     def update(self, instance, validated_data):
         try:
-            logger.info(f'Начинаем обновление рецепта ID: {instance.id} с данными: {validated_data}')
+            logger.info(
+                f'Начинаем обновление рецепта ID: {instance.id} '
+                f'с данными: {validated_data}'
+            )
 
             if 'ingredients' in validated_data:
                 ingredient_data = validated_data.pop('ingredients')
-                logger.debug(f'Обновляем ингредиенты для рецепта ID: {instance.id}')
+                logger.debug(
+                    f'Обновляем ингредиенты для рецепта ID: {instance.id}'
+                )
 
                 instance.ingredients.clear()
-                logger.debug(f'Ингредиенты для рецепта ID: {instance.id} очищены')
+                logger.debug(
+                    f'Ингредиенты для рецепта ID: {instance.id} очищены'
+                )
 
                 for item in ingredient_data:
                     ingredient_id = item['id']
@@ -426,14 +517,25 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
 
                     try:
                         ingredient = Ingredient.objects.get(id=ingredient_id)
-                        logger.debug(f'Найден ингредиент с ID: {ingredient_id}')
+                        logger.debug(
+                            f'Найден ингредиент с ID: {ingredient_id}'
+                        )
                     except Ingredient.DoesNotExist:
-                        logger.error(f'Ингредиент с ID {ingredient_id} не найден при обновлении')
-                        raise serializers.ValidationError(f'Ингредиент с ID {ingredient_id} не найден')
+                        logger.error(
+                            f'Ингредиент с ID {ingredient_id} не найден '
+                            'при обновлении'
+                        )
+                        raise serializers.ValidationError(
+                            f'Ингредиент с ID {ingredient_id} не найден'
+                        )
 
-                    instance.ingredients.add(ingredient, through_defaults={'amount': amount})
+                    instance.ingredients.add(
+                        ingredient, through_defaults={'amount': amount}
+                    )
                     logger.debug(
-                        f'Добавлен ингредиент ID: {ingredient_id} с количеством {amount} в рецепт ID: {instance.id}')
+                        f'Добавлен ингредиент ID: {ingredient_id} '
+                        f'с количеством {amount} в рецепт ID: {instance.id}'
+                    )
 
             if 'tags' in validated_data:
                 tags = validated_data.pop('tags')
@@ -443,18 +545,28 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
 
             for attr, value in validated_data.items():
                 setattr(instance, attr, value)
-                logger.debug(f'Обновлено поле {attr} = {value} для рецепта ID: {instance.id}')
+                logger.debug(
+                    f'Обновлено поле {attr} = {value} для рецепта '
+                    f'ID: {instance.id}'
+                )
 
             instance.save()
             logger.info(f'Рецепт ID: {instance.id} успешно обновлен')
             return instance
 
         except Exception as e:
-            logger.error(f'Ошибка при обновлении рецепта ID: {instance.id}: {str(e)}')
-            raise serializers.ValidationError(f'Ошибка при обновлении рецепта: {str(e)}')
+            logger.error(
+                f'Ошибка при обновлении рецепта ID: {instance.id}: {str(e)}'
+            )
+            raise serializers.ValidationError(
+                f'Ошибка при обновлении рецепта: {str(e)}'
+            )
 
     def to_representation(self, instance):
-        return RecipeDetailSerializer(instance).data
+        return RecipeDetailSerializer(
+            instance,
+            context=self.context
+        ).data
 
 
 class FavoriteRecipeSerializer(serializers.ModelSerializer):
@@ -515,7 +627,9 @@ class UserFollowSerializer(FoodgramUserSerializer):
             return []
 
         if recipes_limit:
-            limit = min(max(recipes_limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT)
+            limit = min(max(
+                recipes_limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT
+            )
         elif limit:
             limit = min(max(limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT)
         else:
@@ -559,7 +673,9 @@ class UserFollowUpdateSerializer(serializers.ModelSerializer):
 
     def validate(self, data):
         if data['user'] == data['following']:
-            raise serializers.ValidationError('Нельзя подписаться на самого себя!')
+            raise serializers.ValidationError(
+                'Нельзя подписаться на самого себя!'
+            )
         return data
 
     def to_representation(self, instance):

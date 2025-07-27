@@ -6,7 +6,6 @@ from dotenv import load_dotenv
 
 from api.constants import PASSWORD_MAX_LENGTH
 
-
 load_dotenv()
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
@@ -223,7 +222,7 @@ LOGGING = {
         },
     },
 }
-CORS_ORIGIN_ALLOW_ALL = True
+CORS_ORIGIN_ALLOW_ALL = False
 CORS_ALLOWED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:3000',
@@ -232,4 +231,9 @@ CORS_ALLOWED_ORIGINS = [
     'http://web:8000'
 ]
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = ['http://localhost:8000', 'http://localhost:3000', 'http://web:8000']
+CSRF_TRUSTED_ORIGINS = [
+    'http://localhost:8000',
+    'http://localhost:3000',
+    'https://yp-foodgram.zapto.org',
+    'http://web:8000'
+]

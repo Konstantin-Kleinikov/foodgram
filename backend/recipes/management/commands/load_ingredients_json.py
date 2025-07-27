@@ -24,7 +24,9 @@ class Command(BaseCommand):
     help = 'Загрузка ингредиентов из JSON-файла с использованием bulk_create'
 
     def handle(self, *args, **kwargs):
-        file_path = Path(settings.BASE_DIR).parent / 'data' / 'ingredients.json'
+        file_path = (Path(settings.BASE_DIR)
+                     .parent / 'data' / 'ingredients.json'
+                     )
         ingredients_list = []
 
         try:
@@ -44,26 +46,36 @@ class Command(BaseCommand):
                     ingredients_list.append(
                         Ingredient(
                             name=ingredient_data['name'],
-                            measurement_unit=ingredient_data['measurement_unit']
+                            measurement_unit=ingredient_data[
+                                'measurement_unit'
+                            ]
                         )
                     )
                     success_count += 1
 
                 except Exception as e:
                     fail_count += 1
-                    logger.error(f'Ошибка при обработке ингредиента {ingredient_data}: {str(e)}')
+                    logger.error(
+                        'Ошибка при обработке ингредиента '
+                        f'{ingredient_data}: {str(e)}')
 
             # Массовая вставка данных
             with transaction.atomic():
                 try:
-                    created_count = len(Ingredient.objects.bulk_create(ingredients_list, batch_size=1000))
+                    created_count = len(
+                        Ingredient.objects.bulk_create(
+                            ingredients_list, batch_size=1000)
+                    )
                     logger.info(f'Успешно создано {created_count} записей')
 
                 except Exception as e:
                     logger.critical(f'Ошибка при массовой загрузке: {str(e)}')
                     raise
 
-            logger.info(f'Загрузка завершена. Обработано: {success_count}, Ошибок: {fail_count}')
+            logger.info(
+                f'Загрузка завершена. Обработано: {success_count}, '
+                f'Ошибок: {fail_count}'
+            )
             self.stdout.write(self.style.SUCCESS('Данные успешно загружены'))
 
         except FileNotFoundError:

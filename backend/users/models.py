@@ -19,7 +19,8 @@ class FoodgramUser(AbstractUser):
         unique=True,
         validators=[username_validator],
         error_messages={
-            'max_length': f'Длина имени пользователя не может превышать {USERNAME_MAX_LENGTH} символов'
+            'max_length': 'Длина имени пользователя не может '
+                          f'превышать {USERNAME_MAX_LENGTH} символов'
         }
     )
     email = models.EmailField(
@@ -34,7 +35,7 @@ class FoodgramUser(AbstractUser):
         blank=True,
         null=True,
     )
-    first_name=models.CharField(
+    first_name = models.CharField(
         'Имя',
         blank=False,
         max_length=NAME_MAX_LENGTH,
@@ -64,16 +65,29 @@ class FoodgramUser(AbstractUser):
                     self.avatar = None
                     # Сохраняем изменения
                     self.save()
-                    logger.info(f'Аватар пользователя {self.username} успешно удален')
+                    logger.info(
+                        f'Аватар пользователя {self.username} успешно удален'
+                    )
                     return True  # Возвращаем True, если аватар был удален
                 else:
-                    logger.warning(f'Файл аватара для пользователя {self.username} не найден')
+                    logger.warning(
+                        f'Файл аватара для пользователя {self.username} '
+                        'не найден'
+                    )
             else:
                 logger.warning(f'У пользователя {self.username} нет аватара')
             return False  # Возвращаем False, если аватар не был удален
         except ValidationError as ve:
-            logger.error(f'Ошибка валидации при удалении аватара пользователя {self.username}: {str(ve)}')
+            logger.error(
+                'Ошибка валидации при удалении аватара пользователя '
+                f'{self.username}: {str(ve)}'
+            )
             raise ValidationError(f'Ошибка при удалении аватара: {str(ve)}')
         except Exception as e:
-            logger.error(f'Ошибка при удалении аватара пользователя {self.username}: {str(e)}')
-            raise Exception(f'Произошла ошибка при удалении аватара: {str(e)}')
+            logger.error(
+                'Ошибка при удалении аватара пользователя '
+                f'{self.username}: {str(e)}'
+            )
+            raise Exception(
+                f'Произошла ошибка при удалении аватара: {str(e)}'
+            )

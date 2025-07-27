@@ -64,11 +64,9 @@ class FavoriteAdmin(admin.ModelAdmin):
     list_filter = ('user',)
     readonly_fields = ('id',)
 
-
     def user_display(self, obj):
         return obj.user.username
     user_display.short_description = 'Пользователь'
-
 
     def recipe_display(self, obj):
         return obj.recipe.name

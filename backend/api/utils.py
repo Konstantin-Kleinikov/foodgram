@@ -39,6 +39,7 @@ def create_shopping_cart_xml(user, ingredients):
 
     return prettify(root)
 
+
 def prettify(elem):
     """Возвращает красиво отформатированную XML строку"""
     rough_string = tostring(elem, 'utf-8')

@@ -3,14 +3,17 @@ import re
 from django.core.exceptions import ValidationError
 from django.core.validators import RegexValidator
 
-from api.constants import (PASSWORD_MAX_LENGTH, SLUG_REGEX, USERNAME_FORBIDDEN,
-                           USERNAME_REGEX)
+from api.constants import (PASSWORD_MAX_LENGTH, SLUG_REGEX,
+                           USERNAME_FORBIDDEN, USERNAME_REGEX)
+
 
 slug_validator = RegexValidator(
     regex=SLUG_REGEX,
-    message='Слаг может содержать только буквы, цифры, дефисы и нижние подчеркивания',
+    message='Слаг может содержать только буквы, цифры, дефисы и '
+            'нижние подчеркивания',
     code='invalid_slug'
 )
+
 
 def username_validator(value):
     """
@@ -19,7 +22,8 @@ def username_validator(value):
     """
     if not re.match(USERNAME_REGEX, value):
         raise ValidationError(
-            'Допустимы только латинские буквы, цифры, символы _,., @, + и -',
+            'Допустимы только латинские буквы, цифры, символы '
+            '_,., @, + и -',
             code='invalid_username'
         )
 
@@ -41,7 +45,8 @@ class MaxLengthValidator:
     def validate(self, password, user=None):
         if len(password) > self.max_length:
             raise ValidationError(
-                f'Пароль не может быть длиннее {self.max_length} символов',
+                f'Пароль не может быть длиннее {self.max_length} '
+                'символов',
                 code='password_too_long',
                 params={'max_length': self.max_length},
             )

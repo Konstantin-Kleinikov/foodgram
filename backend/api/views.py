@@ -2,7 +2,7 @@ import logging
 
 from django.contrib.auth import get_user_model
 from django.core.cache import cache
-from django.db.models import Count, Prefetch
+from django.db.models import Prefetch
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from django_filters.rest_framework import DjangoFilterBackend
@@ -43,7 +43,9 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
 
     def update(self, request, *args, **kwargs):
         instance = self.get_object()
-        serializer = self.get_serializer(instance, data=request.data, partial=True)
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=True
+        )
 
         if serializer.is_valid():
             if 'avatar' not in serializer.validated_data:
@@ -77,7 +79,8 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         except Exception as e:
-            logger.error(f"Ошибка при удалении аватара для пользователя {instance.id}: {str(e)}")
+            logger.error('Ошибка при удалении аватара для '
+                         f'пользователя {instance.id}: {str(e)}')
             return Response(
                 {'detail': 'Ошибка при удалении аватара'},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
@@ -113,7 +116,6 @@ class IngredientViewSet(viewsets.ModelViewSet):
         return Response(response.data['results'])
 
 
-
 class RecipeViewSet(viewsets.ModelViewSet):
     queryset = Recipe.objects.all()
     filter_backends = [
@@ -121,7 +123,6 @@ class RecipeViewSet(viewsets.ModelViewSet):
         filters.OrderingFilter
     ]
     filterset_class = RecipeFilter
-    # lookup_field = 'pk'
 
     def get_permissions(self):
         if self.request.user.is_superuser:
@@ -146,6 +147,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
             Prefetch('ingredients', queryset=Ingredient.objects.all())
         )
 
+    def get_serializer_context(self):
+        context = super().get_serializer_context()
+        context.update({'request': self.request})
+        return context
+
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
@@ -154,9 +160,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if instance.author != request.user and not request.user.is_superuser:
-            self.permission_denied(request, message="Только автор может редактировать рецепт")
+            self.permission_denied(
+                request,
+                message='Только автор может редактировать рецепт'
+            )
 
-        serializer = self.get_serializer(instance, data=request.data, partial=partial)
+        serializer = self.get_serializer(
+            instance, data=request.data, partial=partial
+        )
         serializer.is_valid(raise_exception=True)
         self.perform_update(serializer)
         return Response(serializer.data)
@@ -165,7 +176,9 @@ class RecipeViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         if instance.author != request.user and not request.user.is_superuser:
-            self.permission_denied(request, message="Только автор может удалять рецепт")
+            self.permission_denied(
+                request, message='Только автор может удалять рецепт'
+            )
 
         self.perform_destroy(instance)
         return Response(status=status.HTTP_204_NO_CONTENT)
@@ -174,32 +187,42 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def get_link(self, request, pk=None):
         try:
             if not pk.isdigit():
-                return Response({'error': f'ID должен содержать только цифры, а не {pk}'}, status=status.HTTP_400_BAD_REQUEST)
+                return Response(
+                    {'error': 'ID должен содержать только цифры, '
+                              f'а не {pk}'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
             recipe = self.get_object()
             prefix = 'r-'  # префикс для безопасности
             short_code = encode_base62(recipe.id)
             base_url = request.build_absolute_uri('/')
-            short_url = f"{base_url}s/{prefix}{short_code}"
+            short_url = f'{base_url}s/{prefix}{short_code}'
 
             cache_key = f'recipe_short_link_{recipe.id}'
             cached_link = cache.get(cache_key)
 
             if not cached_link:
-                cache.set(cache_key, short_url, timeout=TIMEOUT_FOR_SHORT_LINK_CAСHES)
+                cache.set(
+                    cache_key,
+                    short_url,
+                    timeout=TIMEOUT_FOR_SHORT_LINK_CAСHES
+                )
 
-            return Response({
-                "short-link": short_url
-            }, status=status.HTTP_200_OK)
+            return Response(
+                {'short-link': short_url},
+                status=status.HTTP_200_OK
+            )
 
         except Exception as e:
-            return Response({
-                "error": str(e)
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
 
 class FavoriteViewSet(mixins.CreateModelMixin,
-                     mixins.DestroyModelMixin,
-                     viewsets.GenericViewSet):
+                      mixins.DestroyModelMixin,
+                      viewsets.GenericViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = FavoriteRecipeSerializer
 
@@ -212,12 +235,16 @@ class FavoriteViewSet(mixins.CreateModelMixin,
         recipe = get_object_or_404(Recipe, id=recipe_id)
 
         if recipe.author == user:
-            return Response({'detail': 'Нельзя подписаться на свой рецепт'},
-                           status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'Нельзя подписаться на свой рецепт'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         if Favorite.objects.filter(user=user, recipe=recipe).exists():
-            return Response({'detail': 'Рецепт уже в избранном'},
-                           status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'Рецепт уже в избранном'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         Favorite.objects.create(user=user, recipe=recipe)
         serializer = self.get_serializer(recipe)
@@ -281,7 +308,10 @@ class FollowView(generics.GenericAPIView):
             follow.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except Follow.DoesNotExist:
-            return Response({'detail': 'Подписка не найдена'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'Подписка не найдена'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
 
 class ShoppingCartViewSet(mixins.CreateModelMixin,
@@ -298,23 +328,38 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
         # Получаем ID рецепта из запроса
         recipe_id = kwargs.get('pk')
         if not recipe_id:
-            return Response({'detail': 'ID рецепта не указан'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'ID рецепта не указан'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
 
         # Проверяем существование рецепта
         recipe = get_object_or_404(Recipe, id=recipe_id)
 
         try:
             # Проверяем, существует ли уже такая запись
-            if ShoppingCart.objects.filter(user=request.user, recipe=recipe).exists():
-                return Response({'detail': 'Рецепт уже в списке покупок'}, status=status.HTTP_400_BAD_REQUEST)
+            if ShoppingCart.objects.filter(
+                    user=request.user, recipe=recipe
+            ).exists():
+                return Response(
+                    {'detail': 'Рецепт уже в списке покупок'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
             # Создаем запись в корзине
-            instance = ShoppingCart.objects.create(user=request.user, recipe=recipe)
+            ShoppingCart.objects.create(
+                user=request.user,
+                recipe=recipe
+            )
             serializer = RecipeShortSerializer(recipe)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
 
         except Exception as e:
-            return Response({'detail': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            logger.error(f"Ошибка при добавлении в корзину: {str(e)}")
+            return Response(
+                {'detail': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['get'], url_path='download-xml')
     def download_xml(self, request):
@@ -334,16 +379,27 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
             # Создаем XML
             xml_content = create_shopping_cart_xml(request.user, ingredients)
 
-            response = HttpResponse(xml_content, content_type='application/xml; charset=utf-8')
-            response['Content-Disposition'] = 'attachment; filename="shopping_cart.xml"'
+            response = HttpResponse(
+                xml_content,
+                content_type='application/xml; charset=utf-8'
+            )
+            response['Content-Disposition'] = ('attachment; '
+                                               'filename="shopping_cart.xml"'
+                                               )
             return response
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     def destroy(self, request, *args, **kwargs):
         recipe_id = kwargs.get('pk')
         if not recipe_id:
-            return Response({'detail': 'ID рецепта не указан'}, status=status.HTTP_400_BAD_REQUEST)
+            return Response(
+                {'detail': 'ID рецепта не указан'},
+                status=status.HTTP_400_BAD_REQUEST
+            )
         # Проверяем существование рецепта
         recipe = get_object_or_404(Recipe, id=recipe_id)
         try:
@@ -355,5 +411,7 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
             cart_item.delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
         except ShoppingCart.DoesNotExist:
-            return Response({'detail': 'Рецепт не найден в списке покупок'}, status=status.HTTP_400_BAD_REQUEST)
-
+            return Response(
+                {'detail': 'Рецепт не найден в списке покупок'},
+                status=status.HTTP_400_BAD_REQUEST
+            )

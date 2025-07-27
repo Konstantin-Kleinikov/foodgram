@@ -6,9 +6,12 @@ from django.urls import include, path
 
 from api.short_url_views import redirect_short_link
 
-
 short_urls_v1 = [
-    path('<str:short_code>/', redirect_short_link, name='short-link-redirect'),
+    path(
+        '<str:short_code>/',
+        redirect_short_link,
+        name='short-link-redirect'
+    ),
 ]
 
 urlpatterns = [
@@ -18,4 +21,7 @@ urlpatterns = [
 ]
 
 if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)
+    urlpatterns += static(
+        settings.MEDIA_URL,
+        document_root=settings.MEDIA_ROOT
+    )

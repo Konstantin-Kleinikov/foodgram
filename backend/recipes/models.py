@@ -44,12 +44,14 @@ class Ingredient(models.Model):
     name = models.CharField(
         'Наименование',
         max_length=INGREDIENT_MAX_LENGTH,
-        help_text=f'Введите название ингредиента (до {INGREDIENT_MAX_LENGTH} символов)'
+        help_text='Введите название ингредиента '
+                  f'(до {INGREDIENT_MAX_LENGTH} символов)'
     )
     measurement_unit = models.CharField(
         verbose_name='Единица измерения',
         max_length=UNIT_OF_MEASURE_MAX_LENGTH,
-        help_text=f'Укажите единицу измерения (до {UNIT_OF_MEASURE_MAX_LENGTH} символов)'
+        help_text='Укажите единицу измерения '
+                  f'(до {UNIT_OF_MEASURE_MAX_LENGTH} символов)'
     )
 
     class Meta:
@@ -71,7 +73,8 @@ class Recipe(models.Model):
     name = models.CharField(
         'Название рецепта',
         max_length=RECIPE_NAME_MAX_LENGTH,
-        help_text=f'Введите название рецепта (до {RECIPE_NAME_MAX_LENGTH} символов)'
+        help_text='Введите название рецепта '
+                  f'(до {RECIPE_NAME_MAX_LENGTH} символов)'
     )
     image = models.ImageField(
         'Изображение рецепта',
@@ -99,12 +102,15 @@ class Recipe(models.Model):
     tags = models.ManyToManyField(
         Tag,
         verbose_name='Теги',
-        related_name = 'recipes'
+        related_name='recipes'
     )
     cooking_time = models.PositiveSmallIntegerField(
         'Время приготовления',
         validators=(MinValueValidator(
-            1, message='Время приготовления не может быть меньше единицы'),),
+            1,
+            message='Время приготовления не может быть меньше единицы'
+        ),
+        ),
         help_text='Укажите время приготовления в минутах'
     )
     pub_date = models.DateTimeField(
@@ -245,4 +251,7 @@ class ShoppingCart(models.Model):
 
     def __str__(self):
         truncator = Truncator(self.recipe.name)
-        return f'{self.user.username} - {truncator.words(RECIPE_DISPLAY_WORDS_LENGTH, truncate="...")}'
+        return (
+            f'{self.user.username} - '
+            f'{truncator.words(RECIPE_DISPLAY_WORDS_LENGTH, truncate="...")}'
+        )
