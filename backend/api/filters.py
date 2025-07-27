@@ -1,7 +1,7 @@
 from django_filters import BaseInFilter, CharFilter
 from django_filters import rest_framework as filters
 
-from recipes.models import Recipe
+from recipes.models import Recipe, Tag
 
 
 class CharListFilter(BaseInFilter, CharFilter):
@@ -17,7 +17,11 @@ class RecipeFilter(filters.FilterSet):
         field_name='author__id',
         lookup_expr='exact'
     )
-    tags = filters.AllValuesMultipleFilter(field_name='tags__slug')
+    tags = filters.ModelMultipleChoiceFilter(
+        queryset=Tag.objects.all(),
+        field_name="tags__slug",
+        to_field_name="slug",
+    )
 
     class Meta:
         model = Recipe
