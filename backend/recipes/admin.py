@@ -34,7 +34,7 @@ class IngredientRecipeInline(admin.TabularInline):
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'author', 'pub_date', 'favorites_count')
-    search_fields = ('author', 'name')
+    search_fields = ('author__username', 'name')
     list_display_links = ('name',)
     list_filter = ('tags',)
     date_hierarchy = 'pub_date'
