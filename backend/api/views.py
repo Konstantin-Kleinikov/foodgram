@@ -372,11 +372,15 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
 
             for cart in carts:
                 for ingredient in cart.recipe.amount_ingredients.all():
-                    ingredient_name = ingredient.ingredient.name
-                    if ingredient_name not in ingredients:
-                        ingredients[ingredient_name] = ingredient.amount
+                    # Используем объект Ingredient вместо строки
+                    ingredient_obj = ingredient.ingredient
+                    amount = ingredient.amount
+
+                    # Формируем ключ как кортеж (объект Ingredient, количество)
+                    if ingredient_obj not in ingredients:
+                        ingredients[ingredient_obj] = amount
                     else:
-                        ingredients[ingredient_name] += ingredient.amount
+                        ingredients[ingredient_obj] += amount
 
             # Создаем XML
             xml_content = create_shopping_cart_xml(request.user, ingredients)
