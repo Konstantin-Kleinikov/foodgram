@@ -7,15 +7,13 @@ from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
 from django.core.validators import (MaxLengthValidator, MinLengthValidator,
                                     MinValueValidator)
-from djoser.serializers import UserCreateSerializer, UserSerializer
+from djoser.serializers import UserSerializer
 from PIL import Image
 from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
-from rest_framework.validators import UniqueTogetherValidator
 
 from recipes.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
-                               MIN_RECIPES_LIMIT, RECIPE_NAME_MAX_LENGTH,
-                               USERNAME_FORBIDDEN)
+                               MIN_RECIPES_LIMIT, RECIPE_NAME_MAX_LENGTH)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
@@ -49,6 +47,9 @@ class Base64ImageField(serializers.ImageField):
 class FoodgramUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
     avatar = serializers.SerializerMethodField()
+    password = serializers.CharField(
+        write_only=True,
+    )
 
     class Meta:
         model = UserModel
@@ -58,6 +59,7 @@ class FoodgramUserSerializer(UserSerializer):
             'username',
             'first_name',
             'last_name',
+            'password',
             'is_subscribed',
             'avatar'
         )
@@ -84,41 +86,6 @@ class FoodgramUserSerializer(UserSerializer):
                 'Не предоставлены данные для аутентификации'
             )
         return super().to_representation(instance)
-
-
-class FoodgramUserCreateSerializer(UserCreateSerializer):
-    def validate_username(self, value):
-        if value.lower() in USERNAME_FORBIDDEN:
-            raise serializers.ValidationError(
-                f'Указанное значение пользователя "{value}" запрещено'
-            )
-        return value
-
-    def validate(self, data):
-        # Проверяем обязательные поля
-        if not data.get('first_name'):
-            raise serializers.ValidationError(
-                {'first_name': 'Это поле обязательно'}
-            )
-        if not data.get('last_name'):
-            raise serializers.ValidationError(
-                {'last_name': 'Это поле обязательно'}
-            )
-        return data
-
-    class Meta(UserCreateSerializer.Meta):
-        model = UserModel
-        fields = (
-            'email',
-            'id',
-            'username',
-            'first_name',
-            'last_name',
-            'password'
-        )
-        extra_kwargs = {
-            'password': {'write_only': True}
-        }
 
 
 class FoodgramUserAvatarSerializer(serializers.ModelSerializer):
@@ -657,33 +624,6 @@ class UserFollowSerializer(FoodgramUserSerializer):
                 following=obj
             ).exists()
         return False
-
-
-class UserFollowUpdateSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Follow
-        fields = '__all__'
-        validators = [
-            UniqueTogetherValidator(
-                queryset=Follow.objects.all(),
-                fields=('user', 'following'),
-                message='Вы уже подписаны на этого пользователя'
-            )
-        ]
-
-    def validate(self, data):
-        if data['user'] == data['following']:
-            raise serializers.ValidationError(
-                'Нельзя подписаться на самого себя!'
-            )
-        return data
-
-    def to_representation(self, instance):
-        request = self.context.get('request')
-        return UserFollowSerializer(
-            instance.following,
-            context={'request': request}
-        ).data
 
 
 class ShoppingCartSerializer(serializers.ModelSerializer):

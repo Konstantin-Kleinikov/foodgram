@@ -8,8 +8,8 @@ from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
 from django.views import View
 from django_filters.rest_framework import DjangoFilterBackend
-from rest_framework import (filters, generics, mixins, permissions, status,
-                            viewsets)
+from djoser.views import UserViewSet as DjoserUserViewSet
+from rest_framework import filters, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
@@ -17,12 +17,11 @@ from rest_framework.response import Response
 from api.filters import RecipeFilter
 from api.serializers import (FavoriteRecipeSerializer,
                              FoodgramUserAvatarSerializer,
-                             IngredientSerializer,
+                             FoodgramUserSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
                              RecipeShortSerializer, ShoppingCartSerializer,
-                             TagSerializer, UserFollowSerializer,
-                             UserFollowUpdateSerializer)
+                             TagSerializer, UserFollowSerializer)
 from api.utils import create_shopping_cart_xml, encode_base62
 from recipes.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
@@ -33,60 +32,99 @@ logger = logging.getLogger(__name__)
 UserModel = get_user_model()
 
 
-class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
-                                mixins.DestroyModelMixin,
-                                viewsets.GenericViewSet):
+class FoodgramUserViewSet(DjoserUserViewSet):
+    """
+    Кастомный вьюсет для пользователей, наследуемый от Djoser
+    """
     queryset = UserModel.objects.all()
-    serializer_class = FoodgramUserAvatarSerializer
-    permission_classes = [IsAuthenticated]
+    serializer_class = FoodgramUserSerializer
+    permission_classes = [
+        permissions.IsAuthenticatedOrReadOnly,
+    ]
 
-    def get_object(self):
-        return self.request.user
+    @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
+    def avatar(self, request):
+        """
+        Управление аватаром пользователя
+        """
+        user = request.user
+        if request.method == 'PUT':
+            serializer = FoodgramUserAvatarSerializer(user, data=request.data)
+            if serializer.is_valid():
+                if 'avatar' not in serializer.validated_data:
+                    return Response(
+                        {'detail': 'Файл аватара не был предоставлен'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
-    def update(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=True
-        )
+                if not serializer.validated_data['avatar']:
+                    return Response(
+                        {'avatar': 'Файл аватара не может быть пустым'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+                serializer.save()
+                return Response(serializer.data)
+            return Response(serializer.errors, status=400)
+        elif request.method == 'DELETE':
+            user.avatar.delete()
+            return Response(status=204)
+        return Response(status=405)
 
-        if serializer.is_valid():
-            if 'avatar' not in serializer.validated_data:
-                return Response(
-                    {'detail': 'Файл аватара не был предоставлен'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            if not serializer.validated_data['avatar']:
-                return Response(
-                    {'avatar': 'Файл аватара не может быть пустым'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            self.perform_update(serializer)
-            return Response(serializer.data, status=status.HTTP_200_OK)
-
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-        try:
-            # if hasattr(instance, 'remove_avatar'):
-            #     avatar_deleted = instance.remove_avatar()
-            #     if avatar_deleted:
-            #         return Response(status=status.HTTP_204_NO_CONTENT)
-            if instance.avatar:
-                instance.avatar.delete()  # Удаляем файл аватара
-            instance.avatar = None  # Очищаем поле в базе данных
-            instance.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
-        except Exception as e:
-            logger.error('Ошибка при удалении аватара для '
-                         f'пользователя {instance.id}: {str(e)}')
-            return Response(
-                {'detail': 'Ошибка при удалении аватара'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+    @action(detail=False, methods=['get'], url_path='subscriptions')
+    def subscriptions(self, request):
+        """
+        Список подписок текущего пользователя
+        """
+        user = request.user
+        subscriptions = UserModel.objects.filter(followers__user=user)
+        page = self.paginate_queryset(subscriptions)
+        if page is not None:
+            serializer = UserFollowSerializer(
+                page,
+                many=True,
+                context={'request': request}
             )
+            return self.get_paginated_response(serializer.data)
+        serializer = UserFollowSerializer(
+            subscriptions,
+            many=True,
+            context={'request': request}
+        )
+        return Response(serializer.data)
+
+    @action(detail=True, methods=['post', 'delete'], url_path='subscribe')
+    def subscribe(self, request, id=None):
+        """
+        Управление подпиской на пользователя
+        """
+        user = get_object_or_404(UserModel, id=id)
+        if user == request.user:
+            return Response(
+                {'detail': 'Нельзя подписаться на себя'},
+                status=400
+            )
+
+        if request.method == 'POST':
+            if Follow.objects.filter(
+                    user=request.user,
+                    following=user
+            ).exists():
+                return Response({'detail': 'Уже подписаны'}, status=400)
+            Follow.objects.create(user=request.user, following=user)
+            serializer = UserFollowSerializer(
+                user,
+                context={'request': request}
+            )
+            return Response(serializer.data, status=201)
+
+        if request.method == 'DELETE':
+            follow = get_object_or_404(
+                Follow,
+                user=request.user,
+                following=user
+            )
+            follow.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
 
 class TagViewSet(viewsets.ModelViewSet):
@@ -269,51 +307,6 @@ class FavoriteViewSet(mixins.CreateModelMixin,
         except Favorite.DoesNotExist:
             return Response({'detail': 'Рецепт не найден в избранном'},
                             status=status.HTTP_400_BAD_REQUEST)
-
-
-class FollowListViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
-    """Получение списка всех подписок на пользователей."""
-
-    serializer_class = UserFollowSerializer
-
-    def get_queryset(self):
-        return UserModel.objects.filter(following__user=self.request.user)
-
-
-class FollowView(generics.GenericAPIView):
-    serializer_class = UserFollowUpdateSerializer
-    permission_classes = [permissions.IsAuthenticated]
-
-    def post(self, request, user_id):
-        author = get_object_or_404(UserModel, id=user_id)
-
-        serializer = self.get_serializer(
-            data={
-                'user': request.user.id,  # Добавляем ID текущего пользователя
-                'following': author.id
-            },
-            context={'request': request}
-        )
-
-        if serializer.is_valid():
-            serializer.save(user=request.user)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
-
-    def delete(self, request, user_id):
-        following_user = get_object_or_404(UserModel, id=user_id)
-        try:
-            follow = Follow.objects.get(
-                user=request.user,
-                following_id=following_user
-            )
-            follow.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Follow.DoesNotExist:
-            return Response(
-                {'detail': 'Подписка не найдена'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
 
 class ShoppingCartViewSet(mixins.CreateModelMixin,
