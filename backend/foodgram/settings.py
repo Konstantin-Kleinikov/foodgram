@@ -4,7 +4,7 @@ from pathlib import Path
 from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
-from api.constants import PASSWORD_MAX_LENGTH
+from recipes.constants import PASSWORD_MAX_LENGTH
 
 load_dotenv()
 
@@ -15,9 +15,13 @@ SECRET_KEY = os.getenv('SECRET_KEY', get_random_secret_key())
 
 DEBUG = os.environ.get('DEBUG', 'False').lower() == 'true'
 
-ALLOWED_HOSTS = os.getenv('ALLOWED_HOSTS', 'localhost,127.0.0.1').replace(' ', '').split(',')
+AUTH_USER_MODEL = 'recipes.FoodgramUser'
 
-AUTH_USER_MODEL = 'users.FoodgramUser'
+ALLOWED_HOSTS = os.getenv(
+    'ALLOWED_HOSTS',
+    'localhost,127.0.0.1'
+).replace(' ', '').split(',')
+
 
 # Application definition
 
@@ -33,9 +37,8 @@ INSTALLED_APPS = [
     'rest_framework.authtoken',
     'djoser',
     'django_filters',
-    'users.apps.UsersConfig',
-    'api.apps.ApiConfig',
-    'recipes.apps.RecipesConfig'
+    'recipes.apps.RecipesConfig',
+    'api.apps.ApiConfig'
 ]
 
 MIDDLEWARE = [
@@ -115,7 +118,7 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': 'api.validators.MaxLengthValidator',
+        'NAME': 'recipes.validators.MaxLengthValidator',
         'OPTIONS': {
             'max_length': PASSWORD_MAX_LENGTH
         }

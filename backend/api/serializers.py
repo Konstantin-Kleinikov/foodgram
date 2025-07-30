@@ -13,9 +13,9 @@ from rest_framework import exceptions, serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueTogetherValidator
 
-from api.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
-                           MIN_RECIPES_LIMIT, RECIPE_NAME_MAX_LENGTH,
-                           USERNAME_FORBIDDEN)
+from recipes.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
+                               MIN_RECIPES_LIMIT, RECIPE_NAME_MAX_LENGTH,
+                               USERNAME_FORBIDDEN)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 

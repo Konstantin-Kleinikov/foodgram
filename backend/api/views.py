@@ -14,7 +14,6 @@ from rest_framework.decorators import action
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
-from api.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from api.filters import RecipeFilter
 from api.serializers import (FavoriteRecipeSerializer,
                              FoodgramUserAvatarSerializer,
@@ -25,6 +24,7 @@ from api.serializers import (FavoriteRecipeSerializer,
                              TagSerializer, UserFollowSerializer,
                              UserFollowUpdateSerializer)
 from api.utils import create_shopping_cart_xml, encode_base62
+from recipes.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
                             Tag)
 
@@ -70,12 +70,12 @@ class FoodgramUserAvatarViewSet(mixins.UpdateModelMixin,
     def destroy(self, request, *args, **kwargs):
         instance = self.get_object()
         try:
-            if hasattr(instance, 'remove_avatar'):
-                avatar_deleted = instance.remove_avatar()
-                if avatar_deleted:
-                    return Response(status=status.HTTP_204_NO_CONTENT)
-
-            instance.avatar.delete()  # Удаляем файл аватара
+            # if hasattr(instance, 'remove_avatar'):
+            #     avatar_deleted = instance.remove_avatar()
+            #     if avatar_deleted:
+            #         return Response(status=status.HTTP_204_NO_CONTENT)
+            if instance.avatar:
+                instance.avatar.delete()  # Удаляем файл аватара
             instance.avatar = None  # Очищаем поле в базе данных
             instance.save()
             return Response(status=status.HTTP_204_NO_CONTENT)

@@ -1,14 +1,57 @@
-from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 from django.utils.text import Truncator
 
-from api.constants import (INGREDIENT_MAX_LENGTH, RECIPE_DISPLAY_WORDS_LENGTH,
-                           RECIPE_NAME_MAX_LENGTH, SLUG_MAX_LENGTH,
-                           TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH)
-from api.validators import slug_validator
+from recipes.constants import (EMAIL_MAX_LENGTH, INGREDIENT_MAX_LENGTH,
+                               NAME_MAX_LENGTH, RECIPE_DISPLAY_WORDS_LENGTH,
+                               RECIPE_NAME_MAX_LENGTH, SLUG_MAX_LENGTH,
+                               TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH,
+                               USERNAME_MAX_LENGTH)
+from recipes.validators import slug_validator, username_validator
 
-UserModel = get_user_model()
+
+class FoodgramUser(AbstractUser):
+    username = models.CharField(
+        'Никнейм пользователя',
+        max_length=USERNAME_MAX_LENGTH,
+        unique=True,
+        validators=[username_validator],
+        # error_messages={
+        #     'max_length': 'Длина имени пользователя не может '
+        #                   f'превышать {USERNAME_MAX_LENGTH} символов'
+        # }
+    )
+    email = models.EmailField(
+        'Адрес электронной почты',
+        unique=True,
+        blank=False,
+        max_length=EMAIL_MAX_LENGTH,
+    )
+    avatar = models.ImageField(
+        'Аватар',
+        upload_to='users/avatars/',
+        blank=True,
+        null=True,
+    )
+    first_name = models.CharField(
+        'Имя',
+        blank=False,
+        max_length=NAME_MAX_LENGTH,
+    )
+    last_name = models.CharField(
+        'Фамилия',
+        blank=False,
+        max_length=NAME_MAX_LENGTH,
+    )
+
+    class Meta:
+        verbose_name = 'пользователь'
+        verbose_name_plural = 'Пользователи'
+        ordering = ('username',)
+
+    def __str__(self):
+        return self.username
 
 
 class Tag(models.Model):
@@ -67,6 +110,10 @@ class Ingredient(models.Model):
 
     def __str__(self):
         return f'{self.name} ({self.measurement_unit})'
+
+from django.contrib.auth import get_user_model
+
+UserModel = get_user_model()
 
 
 class Recipe(models.Model):
