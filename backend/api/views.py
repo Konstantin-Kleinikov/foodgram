@@ -11,6 +11,7 @@ from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
 from rest_framework import filters, mixins, permissions, status, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
@@ -21,7 +22,7 @@ from api.serializers import (FavoriteRecipeSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
                              RecipeShortSerializer, ShoppingCartSerializer,
-                             TagSerializer, UserFollowSerializer)
+                             TagSerializer, UserFollowSerializer, CustomUserCreateSerializer, CustomPasswordSerializer)
 from api.utils import create_shopping_cart_xml, encode_base62
 from recipes.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
@@ -33,14 +34,100 @@ UserModel = get_user_model()
 
 
 class FoodgramUserViewSet(DjoserUserViewSet):
-    """
-    Кастомный вьюсет для пользователей, наследуемый от Djoser
-    """
     queryset = UserModel.objects.all()
-    serializer_class = FoodgramUserSerializer
-    permission_classes = [
-        permissions.IsAuthenticatedOrReadOnly,
-    ]
+    permission_classes = [AllowAny]  # Для создания пользователя
+
+    def get_permissions(self):
+        if self.action in ['list', 'retrieve']:
+            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
+        elif self.action in ['me', 'set_password', 'avatar', 'subscriptions', 'subscribe']:
+            self.permission_classes = [permissions.IsAuthenticated]
+        return super().get_permissions()
+
+    def get_serializer_class(self):
+        if self.action == 'create':
+            return CustomUserCreateSerializer
+        elif self.action == 'set_password':
+            return CustomPasswordSerializer
+        return FoodgramUserSerializer
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user = self.perform_create(serializer)
+
+        # Формируем ответ для POST запроса
+        response_data = {
+            'email': user.email,
+            'id': user.id,
+            'username': user.username,
+            'first_name': user.first_name,
+            'last_name': user.last_name
+        }
+        return Response(response_data, status=status.HTTP_201_CREATED)
+
+    def perform_create(self, serializer):
+        return serializer.save()
+
+    def list(self, request, *args, **kwargs):
+        queryset = self.filter_queryset(self.get_queryset())
+        page = self.paginate_queryset(queryset)
+        if page is not None:
+            serializer = self.get_serializer(page, many=True)
+            return self.get_paginated_response(serializer.data)
+
+        serializer = self.get_serializer(queryset, many=True)
+        return Response(serializer.data)
+
+    def retrieve(self, request, *args, **kwargs):
+        instance = self.get_object()
+        serializer = self.get_serializer(instance)
+        return Response(serializer.data)
+
+    @action(["post"], detail=False)
+    def set_password(self, request):
+        serializer = self.get_serializer(
+            request.user,
+            data=request.data,
+            context={'request': request}
+        )
+
+        try:
+            if not serializer.is_valid():
+                return Response(
+                    serializer.errors,
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+            serializer.save()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+
+        except Exception as ex:
+            # Собираем детальную информацию об ошибке
+            error_details = {
+                'detail': str(ex),
+                'errors': getattr(ex, 'detail', {})
+            }
+            return Response(
+                error_details,
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+    @action(["get"], detail=False, url_path="me")
+    def me(self, request):
+        if not request.user.is_authenticated:
+            raise PermissionDenied("Authentication credentials were not provided")
+
+        serializer = self.get_serializer(request.user)
+        try:
+            return Response(serializer.data)
+        except Exception as e:
+            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
     @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
     def avatar(self, request):

@@ -3,13 +3,12 @@ import logging
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.contrib.auth.models import AnonymousUser
 from django.core.files.base import ContentFile
 from django.core.validators import (MaxLengthValidator, MinLengthValidator,
                                     MinValueValidator)
-from djoser.serializers import UserSerializer
+from djoser.serializers import UserSerializer, UserCreateSerializer, PasswordSerializer
 from PIL import Image
-from rest_framework import exceptions, serializers
+from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 
 from recipes.constants import (MAX_INGREDIENTS, MAX_RECIPES_LIMIT, MAX_TAGS,
@@ -46,46 +45,77 @@ class Base64ImageField(serializers.ImageField):
 
 class FoodgramUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
-    avatar = serializers.SerializerMethodField()
-    password = serializers.CharField(
-        write_only=True,
-    )
+    avatar = serializers.ImageField(required=False, allow_null=True)
 
-    class Meta:
+    class Meta(UserSerializer.Meta):
         model = UserModel
         fields = (
             'email',
             'id',
-            'username',
-            'first_name',
-            'last_name',
-            'password',
+            'username',  # Добавляем явно
+            'first_name',  # Добавляем явно
+            'last_name',  # Добавляем явно
             'is_subscribed',
             'avatar'
         )
 
-    def get_is_subscribed(self, obj):
+    def get_is_subscribed(self, user_instance):
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return Follow.objects.filter(
-                user=request.user,  # кто подписан (текущий пользователь)
+                user=request.user,
+                following=user_instance
             ).exists()
         return False
 
-    def get_avatar(self, obj):
-        # Возвращаем URL аватара или None, если нет изображения
-        request = self.context.get('request')
-        if obj.avatar and request:
-            return request.build_absolute_uri(obj.avatar.url)
-        return None
 
-    def to_representation(self, instance):
-        # Проверяем тип пользователя
-        if isinstance(instance, AnonymousUser):
-            raise exceptions.AuthenticationFailed(
-                'Не предоставлены данные для аутентификации'
+class CustomUserCreateSerializer(UserCreateSerializer):
+    class Meta(UserCreateSerializer.Meta):
+        model = UserModel
+        fields = ('email', 'username', 'first_name', 'last_name', 'password')
+
+    def validate_username(self, value):
+        # Обновленное регулярное выражение, разрешающее дефисы
+        if not re.match(r'^[a-zA-Z0-9._-]+$', value):  # Добавлен дефис в разрешенные символы
+            raise serializers.ValidationError(
+                "Имя пользователя может содержать только буквы, цифры, точки, дефисы и нижние подчеркивания"
             )
-        return super().to_representation(instance)
+        return value
+
+
+class CustomPasswordSerializer(PasswordSerializer):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        # Добавляем явное указание полей
+        self.fields['current_password'] = serializers.CharField(
+            write_only=True,
+            required=True
+        )
+        self.fields['new_password'] = serializers.CharField(
+            write_only=True,
+            required=True
+        )
+
+    def validate(self, attrs):
+        # Получаем текущего пользователя из контекста
+        user = self.context['request'].user
+
+        # Получаем текущий пароль из данных запроса
+        current_password = attrs.get('current_password')
+
+        # Проверяем пароль
+        if not user.check_password(current_password):
+            raise ValidationError({
+                'current_password': 'Неверный текущий пароль'
+            })
+
+        return super().validate(attrs)
+
+    def update(self, instance, validated_data):
+        # Метод update обязателен для работы сериализатора
+        instance.set_password(validated_data['new_password'])
+        instance.save()
+        return instance
 
 
 class FoodgramUserAvatarSerializer(serializers.ModelSerializer):
