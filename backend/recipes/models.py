@@ -4,12 +4,12 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator
 from django.db import models
 
-from recipes.constants import (EMAIL_MAX_LENGTH, INGREDIENT_MAX_LENGTH,
-                               NAME_MAX_LENGTH,
-                               RECIPE_NAME_MAX_LENGTH, SLUG_MAX_LENGTH,
-                               TAG_MAX_LENGTH, UNIT_OF_MEASURE_MAX_LENGTH,
-                               USERNAME_MAX_LENGTH, TEXT_FIELDS_DISPLAY_LENGTH, INGREDIENT_MIN_VALUE,
-                               COOKING_TIME_MIN_VALUE)
+from recipes.constants import (COOKING_TIME_MIN_VALUE, EMAIL_MAX_LENGTH,
+                               INGREDIENT_MAX_LENGTH, INGREDIENT_MIN_VALUE,
+                               NAME_MAX_LENGTH, RECIPE_NAME_MAX_LENGTH,
+                               SLUG_MAX_LENGTH, TAG_MAX_LENGTH,
+                               TEXT_FIELDS_DISPLAY_LENGTH,
+                               UNIT_OF_MEASURE_MAX_LENGTH, USERNAME_MAX_LENGTH)
 
 
 class FoodgramUserManager(BaseUserManager):
@@ -18,7 +18,13 @@ class FoodgramUserManager(BaseUserManager):
     уникальным идентификатором для аутентификации вместо username.
     """
 
-    def create_user(self, username=None, email=None, password=None, **extra_fields):
+    def create_user(
+            self,
+            username=None,
+            email=None,
+            password=None,
+            **extra_fields
+    ):
         """
         Создает и сохраняет пользователя с указанным email и паролем.
         """

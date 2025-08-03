@@ -1,12 +1,14 @@
 import base64
 import logging
+import re
 from io import BytesIO
 
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.core.validators import (MaxLengthValidator, MinLengthValidator,
                                     MinValueValidator)
-from djoser.serializers import UserSerializer, UserCreateSerializer, PasswordSerializer
+from djoser.serializers import (PasswordSerializer, UserCreateSerializer,
+                                UserSerializer)
 from PIL import Image
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
@@ -76,9 +78,10 @@ class CustomUserCreateSerializer(UserCreateSerializer):
 
     def validate_username(self, value):
         # Обновленное регулярное выражение, разрешающее дефисы
-        if not re.match(r'^[a-zA-Z0-9._-]+$', value):  # Добавлен дефис в разрешенные символы
+        if not re.match(r'^[a-zA-Z0-9._-]+$', value):
             raise serializers.ValidationError(
-                "Имя пользователя может содержать только буквы, цифры, точки, дефисы и нижние подчеркивания"
+                'Имя пользователя может содержать только буквы, цифры, '
+                'точки, дефисы и нижние подчеркивания'
             )
         return value
 

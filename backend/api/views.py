@@ -16,13 +16,15 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.filters import RecipeFilter
-from api.serializers import (FavoriteRecipeSerializer,
+from api.serializers import (CustomPasswordSerializer,
+                             CustomUserCreateSerializer,
+                             FavoriteRecipeSerializer,
                              FoodgramUserAvatarSerializer,
                              FoodgramUserSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeDetailSerializer, RecipeListSerializer,
                              RecipeShortSerializer, ShoppingCartSerializer,
-                             TagSerializer, UserFollowSerializer, CustomUserCreateSerializer, CustomPasswordSerializer)
+                             TagSerializer, UserFollowSerializer)
 from api.utils import create_shopping_cart_xml, encode_base62
 from recipes.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
@@ -40,7 +42,13 @@ class FoodgramUserViewSet(DjoserUserViewSet):
     def get_permissions(self):
         if self.action in ['list', 'retrieve']:
             self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-        elif self.action in ['me', 'set_password', 'avatar', 'subscriptions', 'subscribe']:
+        elif self.action in [
+            'me',
+            'set_password',
+            'avatar',
+            'subscriptions',
+            'subscribe'
+        ]:
             self.permission_classes = [permissions.IsAuthenticated]
         return super().get_permissions()
 
@@ -50,11 +58,6 @@ class FoodgramUserViewSet(DjoserUserViewSet):
         elif self.action == 'set_password':
             return CustomPasswordSerializer
         return FoodgramUserSerializer
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
 
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
@@ -121,13 +124,17 @@ class FoodgramUserViewSet(DjoserUserViewSet):
     @action(["get"], detail=False, url_path="me")
     def me(self, request):
         if not request.user.is_authenticated:
-            raise PermissionDenied("Authentication credentials were not provided")
+            raise PermissionDenied('Authentication credentials were '
+                                   'not provided')
 
         serializer = self.get_serializer(request.user)
         try:
             return Response(serializer.data)
         except Exception as e:
-            return Response({'error': str(e)}, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+            return Response(
+                {'error': str(e)},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR
+            )
 
     @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
     def avatar(self, request):
