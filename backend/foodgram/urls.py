@@ -4,8 +4,8 @@ from django.conf.urls.static import static
 from django.contrib import admin
 from django.urls import include, path
 
-from api.short_url_views import redirect_short_link
 from api.views import PublicRecipeDetailView
+from recipes.short_url_views import redirect_short_link
 
 short_urls_v1 = [
     path(

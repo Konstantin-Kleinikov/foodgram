@@ -1,9 +1,11 @@
 import math
+
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
-from django.db.models import Count, Min, Max
+from django.db.models import Count, Max, Min
 from django.utils.decorators import method_decorator
-from django.utils.safestring import mark_safe as mark_safe_decorator, mark_safe
+from django.utils.safestring import mark_safe
+from django.utils.safestring import mark_safe as mark_safe_decorator
 
 from recipes.filters import (HasFavoritesFilter, HasFollowersFilter,
                              HasRecipesFilter)
@@ -56,13 +58,18 @@ class CookingTimeFilter(SimpleListFilter):
                 max_time=Max('cooking_time')
             )
 
-            if time_stats['max_time'] is None or time_stats['min_time'] is None:
+            if (time_stats['max_time'] is None
+                    or time_stats['min_time'] is None):
                 self.short_threshold = 0
                 self.medium_threshold = 0
             else:
                 range_time = time_stats['max_time'] - time_stats['min_time']
-                self.short_threshold = math.ceil(time_stats['min_time'] + range_time / 3)
-                self.medium_threshold = math.ceil(time_stats['min_time'] + (range_time * 2) / 3)
+                self.short_threshold = (
+                    math.ceil(time_stats['min_time'] + range_time / 3)
+                )
+                self.medium_threshold = (
+                    math.ceil(time_stats['min_time'] + (range_time * 2) / 3)
+                )
 
             # Добавляем отладочный вывод
             print(f"min_time: {time_stats['min_time']}")
@@ -84,8 +91,16 @@ class CookingTimeFilter(SimpleListFilter):
         self._calculate_thresholds_if_needed()
 
         # Форматируем значения с проверкой на корректность
-        short_value = self.short_threshold if self.short_threshold is not None else 0
-        medium_value = self.medium_threshold if self.medium_threshold is not None else 0
+        short_value = (
+            self.short_threshold
+            if self.short_threshold is not None
+            else 0
+        )
+        medium_value = (
+            self.medium_threshold
+            if self.medium_threshold is not None
+            else 0
+        )
 
         return (
             ('short', f'Быстрое (до {short_value} мин)'),
@@ -291,7 +306,8 @@ class RecipeAdmin(admin.ModelAdmin):
     def ingredients_list(self, recipe):
         ingredients = recipe.amount_ingredients.all()
         return '<br>'.join(
-            f'{ingredient.ingredient.name} ({ingredient.amount} {ingredient.ingredient.measurement_unit})'
+            f'{ingredient.ingredient.name} ({ingredient.amount} '
+            f'{ingredient.ingredient.measurement_unit})'
             for ingredient in ingredients
         )
 

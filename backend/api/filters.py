@@ -19,25 +19,25 @@ class RecipeFilter(filters.FilterSet):
     )
     tags = filters.ModelMultipleChoiceFilter(
         queryset=Tag.objects.all(),
-        field_name="tags__slug",
-        to_field_name="slug",
+        field_name='tags__slug',
+        to_field_name='slug',
     )
 
     class Meta:
         model = Recipe
         fields = ['is_favorited', 'is_in_shopping_cart', 'author', 'tags']
 
-    def filter_is_favorited(self, queryset, name, value):
+    def filter_is_favorited(self, recipes, name, value):
         if value and self.request.user and self.request.user.is_authenticated:
-            return queryset.filter(favorites__user=self.request.user)
-        return queryset
+            return recipes.filter(favorites__user=self.request.user)
+        return recipes
 
-    def filter_is_in_shopping_cart(self, queryset, name, value):
+    def filter_is_in_shopping_cart(self, recipes, name, value):
         if value and self.request.user and self.request.user.is_authenticated:
-            return queryset.filter(carts__user=self.request.user)
-        return queryset
+            return recipes.filter(carts__user=self.request.user)
+        return recipes
 
-    def filter_queryset(self, queryset):
-        queryset = queryset.select_related('author')
-        queryset = queryset.prefetch_related('tags')
-        return super().filter_queryset(queryset)
+    def filter_queryset(self, recipes):
+        recipes = recipes.select_related('author')
+        recipes = recipes.prefetch_related('tags')
+        return super().filter_queryset(recipes)
