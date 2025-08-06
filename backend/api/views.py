@@ -1,11 +1,11 @@
 import logging
 
 from django.contrib.auth import get_user_model
-from django.core.cache import cache
 from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
 from django.http import HttpResponse, HttpResponseRedirect
 from django.shortcuts import get_object_or_404
+from django.urls import reverse
 from django.views import View
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
@@ -16,17 +16,16 @@ from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework.response import Response
 
 from api.filters import RecipeFilter
+from api.permissions import IsAdminAuthorOrReadOnly
 from api.serializers import (CustomPasswordSerializer,
                              CustomUserCreateSerializer,
                              FavoriteRecipeSerializer,
                              FoodgramUserAvatarSerializer,
                              FoodgramUserSerializer, IngredientSerializer,
-                             RecipeCreateUpdateSerializer,
-                             RecipeDetailSerializer, RecipeListSerializer,
+                             RecipeCreateUpdateSerializer, RecipeSerializer,
                              RecipeShortSerializer, ShoppingCartSerializer,
                              TagSerializer, UserFollowSerializer)
-from api.utils import create_shopping_cart_xml, encode_base62
-from recipes.constants import TIMEOUT_FOR_SHORT_LINK_CAСHES
+from api.utils import create_shopping_cart_xml
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
                             Tag)
 
@@ -221,58 +220,37 @@ class FoodgramUserViewSet(DjoserUserViewSet):
             return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TagViewSet(viewsets.ModelViewSet):
+class TagViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
     serializer_class = TagSerializer
     lookup_field = 'id'
-    ordering_fields = ['name', 'id']
-    ordering = ['name']
-    http_method_names = ['get', 'head', 'options']
     permission_classes = [AllowAny]
-
-    def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return Response(response.data['results'])
+    pagination_class = None
 
 
-class IngredientViewSet(viewsets.ModelViewSet):
+class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
     serializer_class = IngredientSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['^name']
     ordering_fields = ['name']
     filterset_fields = ['name']
-    http_method_names = ['get', 'head', 'options']
     permission_classes = [AllowAny]
-
-    def list(self, request, *args, **kwargs):
-        response = super().list(request, *args, **kwargs)
-        return Response(response.data['results'])
+    pagination_class = None
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.all()
     filter_backends = [
         DjangoFilterBackend,
         filters.OrderingFilter
     ]
     filterset_class = RecipeFilter
-
-    def get_permissions(self):
-        if self.request.user.is_superuser:
-            return [permissions.AllowAny()]
-        if self.request.method in permissions.SAFE_METHODS:
-            return [permissions.AllowAny()]
-        return super().get_permissions()
+    permission_classes = (IsAdminAuthorOrReadOnly,)
 
     def get_serializer_class(self):
-        if self.action == 'list':
-            return RecipeListSerializer
-        elif self.action == 'retrieve':
-            return RecipeDetailSerializer
-        elif self.action == 'create' or self.action == 'partial_update':
+        if self.action == 'create' or self.action == 'partial_update':
             return RecipeCreateUpdateSerializer
-        return RecipeDetailSerializer
+        return RecipeSerializer
 
     def get_queryset(self):
         return Recipe.objects.prefetch_related(
@@ -289,69 +267,26 @@ class RecipeViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         serializer.save(author=self.request.user)
 
-    def update(self, request, *args, **kwargs):
-        partial = kwargs.pop('partial', False)
-        instance = self.get_object()
-
-        if instance.author != request.user and not request.user.is_superuser:
-            self.permission_denied(
-                request,
-                message='Только автор может редактировать рецепт'
-            )
-
-        serializer = self.get_serializer(
-            instance, data=request.data, partial=partial
-        )
-        serializer.is_valid(raise_exception=True)
-        self.perform_update(serializer)
-        return Response(serializer.data)
-
-    def destroy(self, request, *args, **kwargs):
-        instance = self.get_object()
-
-        if instance.author != request.user and not request.user.is_superuser:
-            self.permission_denied(
-                request, message='Только автор может удалять рецепт'
-            )
-
-        self.perform_destroy(instance)
-        return Response(status=status.HTTP_204_NO_CONTENT)
-
     @action(detail=True, methods=['get'], url_path='get-link')
     def get_link(self, request, pk=None):
-        try:
-            if not pk.isdigit():
-                return Response(
-                    {'error': 'ID должен содержать только цифры, '
-                              f'а не {pk}'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            recipe = self.get_object()
-            prefix = 'r-'  # префикс для безопасности
-            short_code = encode_base62(recipe.id)
-            base_url = request.build_absolute_uri('/')
-            short_url = f'{base_url}s/{prefix}{short_code}'
+        recipe = get_object_or_404(Recipe, id=pk)
 
-            cache_key = f'recipe_short_link_{recipe.id}'
-            cached_link = cache.get(cache_key)
+        # Генерируем короткий код
+        short_code = str(recipe.id)
 
-            if not cached_link:
-                cache.set(
-                    cache_key,
-                    short_url,
-                    timeout=TIMEOUT_FOR_SHORT_LINK_CAСHES
-                )
+        # Формируем URL через reverse
+        short_url = reverse(
+            'short-link-redirect',
+            kwargs={'short_code': short_code}
+        )
 
-            return Response(
-                {'short-link': short_url},
-                status=status.HTTP_200_OK
-            )
+        # Добавляем полный URL с доменом
+        full_short_url = request.build_absolute_uri(short_url)
 
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return Response(
+            {'short-link': full_short_url},
+            status=status.HTTP_200_OK
+        )
 
 
 class FavoriteViewSet(mixins.CreateModelMixin,

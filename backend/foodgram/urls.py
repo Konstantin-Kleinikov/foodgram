@@ -5,20 +5,11 @@ from django.contrib import admin
 from django.urls import include, path
 
 from api.views import PublicRecipeDetailView
-from recipes.short_url_views import redirect_short_link
-
-short_urls_v1 = [
-    path(
-        '<str:short_code>/',
-        redirect_short_link,
-        name='short-link-redirect'
-    ),
-]
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('api/', include('api.urls')),
-    path('s/', include(short_urls_v1)),
+    path('s/', include('recipes.urls')),
     path(
         'recipes/<int:pk>/',
         PublicRecipeDetailView.as_view(),
