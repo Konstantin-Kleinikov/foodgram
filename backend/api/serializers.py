@@ -1,14 +1,11 @@
-import base64
 import logging
 import re
-from io import BytesIO
 
 from django.contrib.auth import get_user_model
-from django.core.files.base import ContentFile
 from django.core.validators import MinValueValidator
 from djoser.serializers import (PasswordSerializer, UserCreateSerializer,
                                 UserSerializer)
-from PIL import Image
+from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueValidator
@@ -22,28 +19,6 @@ from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
 logger = logging.getLogger(__name__)
 
 UserModel = get_user_model()
-
-
-class Base64ImageField(serializers.ImageField):
-    def to_internal_value(self, data):
-        if isinstance(data, str) and data.startswith('data:image'):
-            try:
-                # Разделяем формат и данные
-                format, imgstr = data.split(';base64,')
-                ext = format.split('/')[-1]
-                # Декодируем base64
-                decoded_data = base64.b64decode(imgstr)
-                # Проверяем, что это действительно изображение
-                image = Image.open(BytesIO(decoded_data))
-                image.verify()
-                image.close()
-                # Создаем файл
-                data = ContentFile(decoded_data, name=f'temp.{ext}')
-            except Exception as e:
-                raise ValidationError(
-                    f'Ошибка при обработке изображения: {str(e)}'
-                )
-        return super().to_internal_value(data)
 
 
 class FoodgramUserSerializer(UserSerializer):
@@ -478,12 +453,6 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         ).data
 
 
-class FavoriteRecipeSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = Recipe
-        fields = ['id', 'name', 'image', 'cooking_time']
-
-
 class RecipeShortSerializer(serializers.ModelSerializer):
     class Meta:
         model = Recipe
@@ -498,76 +467,40 @@ class RecipeShortSerializer(serializers.ModelSerializer):
 class UserFollowSerializer(FoodgramUserSerializer):
     """Сериализатор получения информации о подписке текущего пользователя."""
 
-    is_subscribed = serializers.SerializerMethodField()
     recipes = serializers.SerializerMethodField()
-    recipes_count = serializers.SerializerMethodField()
+    recipes_count = serializers.IntegerField(
+        source='recipes.count',
+        read_only=True
+    )
 
-    class Meta:
-        model = UserModel
-        fields = (
-            'email',
-            'id',
-            'username',
-            'first_name',
-            'last_name',
-            'is_subscribed',
+    class Meta(FoodgramUserSerializer.Meta):
+        # Получаем базовые поля из родительского Meta
+        fields = FoodgramUserSerializer.Meta.fields + (
             'recipes',
-            'recipes_count',
-            'avatar',
+            'recipes_count'
         )
         read_only_fields = fields
 
-    def get_recipes(self, obj):
+    def get_recipes(self, user):
         request = self.context.get('request')
-
         try:
-            recipes_limit = int(request.query_params.get('recipes_limit', 0))
-            limit = int(request.query_params.get('limit', 0))
+            # Используем "бесконечность" для максимального значения
+            recipes_limit = int(request.GET.get('recipes_limit', 10 ** 10))
+            limit = int(request.GET.get('limit', 10 ** 10))
         except ValueError:
             return []
 
-        if recipes_limit:
-            limit = min(max(
-                recipes_limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT
-            )
-        elif limit:
-            limit = min(max(limit, MIN_RECIPES_LIMIT), MAX_RECIPES_LIMIT)
-        else:
-            limit = MAX_RECIPES_LIMIT  # По умолчанию возвращаем максимум
+        # Определяем финальное значение limit
+        final_limit = min(
+            max(recipes_limit, MIN_RECIPES_LIMIT),
+            max(limit, MIN_RECIPES_LIMIT),
+            MAX_RECIPES_LIMIT
+        )
 
-        recipes = obj.recipes.all()[:limit]
-
+        # Получаем рецепты с учетом лимита
+        recipes = user.recipes.all()[:final_limit]
         return RecipeShortSerializer(
             recipes,
             many=True,
             context={'request': request}
         ).data
-
-    def get_recipes_count(self, obj):
-        # Кэшируем результат, чтобы избежать лишних запросов
-        if not hasattr(obj, '_recipes_count'):
-            obj._recipes_count = obj.recipes.count()
-        return obj._recipes_count
-
-    def get_is_subscribed(self, obj):
-        request = self.context.get('request')
-        if request and request.user.is_authenticated:
-            return Follow.objects.filter(
-                user=request.user,
-                following=obj
-            ).exists()
-        return False
-
-
-class ShoppingCartSerializer(serializers.ModelSerializer):
-    class Meta:
-        model = ShoppingCart
-        fields = ['id', 'user', 'recipe']
-        read_only_fields = ['user']
-
-    def validate_recipe(self, value):
-        try:
-            Recipe.objects.get(pk=value.pk)
-            return value
-        except Recipe.DoesNotExist:
-            raise serializers.ValidationError('Рецепт не найден')

@@ -1,30 +1,28 @@
+import io
 import logging
 
 from django.contrib.auth import get_user_model
-from django.core.exceptions import ObjectDoesNotExist
 from django.db.models import Prefetch
-from django.http import HttpResponse, HttpResponseRedirect
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.urls import reverse
-from django.views import View
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
-from rest_framework import filters, mixins, permissions, status, viewsets
+from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import AllowAny, IsAuthenticated
+from rest_framework.permissions import AllowAny
 from rest_framework.response import Response
 
 from api.filters import RecipeFilter
 from api.permissions import IsAdminAuthorOrReadOnly
 from api.serializers import (CustomPasswordSerializer,
                              CustomUserCreateSerializer,
-                             FavoriteRecipeSerializer,
                              FoodgramUserAvatarSerializer,
                              FoodgramUserSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer, RecipeSerializer,
-                             RecipeShortSerializer, ShoppingCartSerializer,
-                             TagSerializer, UserFollowSerializer)
+                             RecipeShortSerializer, TagSerializer,
+                             UserFollowSerializer)
 from api.utils import create_shopping_cart_xml
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
                             Tag)
@@ -211,13 +209,20 @@ class FoodgramUserViewSet(DjoserUserViewSet):
             return Response(serializer.data, status=201)
 
         if request.method == 'DELETE':
-            follow = get_object_or_404(
-                Follow,
-                user=request.user,
-                following=user
-            )
-            follow.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
+            try:
+                follow = Follow.objects.get(
+                    user=request.user,
+                    following=user
+                )
+                follow.delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except Follow.DoesNotExist:
+                return Response(
+                    {'detail': 'Подписка не существует'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
+
+        return None
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
@@ -246,9 +251,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
     ]
     filterset_class = RecipeFilter
     permission_classes = (IsAdminAuthorOrReadOnly,)
+    http_method_names = ['get', 'post', 'patch', 'delete']
 
     def get_serializer_class(self):
-        if self.action == 'create' or self.action == 'partial_update':
+        if (self.action == 'create'
+                or self.action == 'partial_update'):
             return RecipeCreateUpdateSerializer
         return RecipeSerializer
 
@@ -288,104 +295,110 @@ class RecipeViewSet(viewsets.ModelViewSet):
             status=status.HTTP_200_OK
         )
 
-
-class FavoriteViewSet(mixins.CreateModelMixin,
-                      mixins.DestroyModelMixin,
-                      viewsets.GenericViewSet):
-    permission_classes = [IsAuthenticated]
-    serializer_class = FavoriteRecipeSerializer
-
-    def get_queryset(self):
-        return Recipe.objects.select_related('image').all()
-
-    def create(self, request, *args, **kwargs):
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        url_path='favorite',
+    )
+    def favorite(self, request, pk=None):
         user = request.user
-        recipe_id = kwargs.get('recipe_id')  # Получаем recipe_id из kwargs
-        recipe = get_object_or_404(Recipe, id=recipe_id)
+        recipe = get_object_or_404(Recipe, id=pk)
 
-        if recipe.author == user:
-            return Response(
-                {'detail': 'Нельзя подписаться на свой рецепт'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        if Favorite.objects.filter(user=user, recipe=recipe).exists():
-            return Response(
-                {'detail': 'Рецепт уже в избранном'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-        Favorite.objects.create(user=user, recipe=recipe)
-        serializer = self.get_serializer(recipe)
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
-
-    def destroy(self, request, *args, **kwargs):
-        user = request.user
-        recipe_id = kwargs.get('recipe_id')  # Получаем recipe_id из kwargs
-        recipe = get_object_or_404(Recipe, id=recipe_id)
-        # Проверка прав доступа
         if user == recipe.author:
             return Response(
-                {'detail': 'Нельзя удалять подписку на свой рецепт'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        try:
-            favorite = Favorite.objects.get(user=user, recipe=recipe)
-            favorite.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except Favorite.DoesNotExist:
-            return Response({'detail': 'Рецепт не найден в избранном'},
-                            status=status.HTTP_400_BAD_REQUEST)
-
-
-class ShoppingCartViewSet(mixins.CreateModelMixin,
-                          mixins.DestroyModelMixin,
-                          viewsets.GenericViewSet):
-    serializer_class = ShoppingCartSerializer
-    permission_classes = [IsAuthenticated]
-    queryset = ShoppingCart.objects.all()
-
-    def get_queryset(self):
-        return ShoppingCart.objects.filter(user=self.request.user)
-
-    def create(self, request, *args, **kwargs):
-        # Получаем ID рецепта из запроса
-        recipe_id = kwargs.get('pk')
-        if not recipe_id:
-            return Response(
-                {'detail': 'ID рецепта не указан'},
+                {'detail': 'Нельзя добавлять/удалять свой рецепт '
+                           'из избранного'},
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        # Проверяем существование рецепта
-        recipe = get_object_or_404(Recipe, id=recipe_id)
-
-        try:
-            # Проверяем, существует ли уже такая запись
-            if ShoppingCart.objects.filter(
-                    user=request.user, recipe=recipe
-            ).exists():
+        if request.method == 'POST':
+            # Добавление в избранное
+            favorite, created = Favorite.objects.get_or_create(
+                user=user,
+                recipe=recipe
+            )
+            if not created:
                 return Response(
-                    {'detail': 'Рецепт уже в списке покупок'},
+                    {'detail': 'Рецепт уже в избранном'},
                     status=status.HTTP_400_BAD_REQUEST
                 )
 
-            # Создаем запись в корзине
-            ShoppingCart.objects.create(
-                user=request.user,
-                recipe=recipe
-            )
-            serializer = RecipeShortSerializer(recipe)
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
+            data = {
+                'id': recipe.id,
+                'name': recipe.name,
+                'image': recipe.image.url if recipe.image else None,
+                'cooking_time': recipe.cooking_time
+            }
+            return Response(data, status=status.HTTP_201_CREATED)
+
+        elif request.method == 'DELETE':
+            # Удаление из избранного
+            try:
+                favorite = Favorite.objects.get(
+                    user=user,
+                    recipe=recipe
+                )
+                favorite.delete()
+                return Response(status=status.HTTP_204_NO_CONTENT)
+            except Favorite.DoesNotExist:
+                return Response(
+                    {'detail': 'Рецепт не найден в избранном'},
+                    status=status.HTTP_404_NOT_FOUND
+                )
+
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        url_path='shopping_cart',
+    )
+    def shopping_cart(self, request, pk=None):
+        user = request.user
+        recipe = get_object_or_404(Recipe, id=pk)
+
+        try:
+            if request.method == 'POST':
+                if ShoppingCart.objects.filter(
+                        user=user, recipe=recipe
+                ).exists():
+                    return Response(
+                        {'detail': 'Рецепт уже в списке покупок'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
+
+                ShoppingCart.objects.create(
+                    user=user,
+                    recipe=recipe
+                )
+                serializer = RecipeShortSerializer(recipe)
+                return Response(
+                    serializer.data,
+                    status=status.HTTP_201_CREATED
+                )
+
+            elif request.method == 'DELETE':
+                try:
+                    cart_item = ShoppingCart.objects.get(
+                        user=user,
+                        recipe=recipe
+                    )
+                    cart_item.delete()
+                    return Response(status=status.HTTP_204_NO_CONTENT)
+
+                except ShoppingCart.DoesNotExist:
+                    # Возвращаем корректный статус 400 при отсутствии элемента
+                    return Response(
+                        {'detail': 'Рецепт не найден в списке покупок'},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
         except Exception as e:
-            logger.error(f"Ошибка при добавлении в корзину: {str(e)}")
+            logger.error(f"Ошибка при работе со списком покупок: {str(e)}")
             return Response(
                 {'detail': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
 
-    @action(detail=False, methods=['get'], url_path='download-xml')
+    @action(detail=False, methods=['get'], url_path='download_shopping_cart')
     def download_xml(self, request):
         try:
             # Собираем все ингредиенты из корзины
@@ -394,11 +407,9 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
 
             for cart in carts:
                 for ingredient in cart.recipe.amount_ingredients.all():
-                    # Используем объект Ingredient вместо строки
                     ingredient_obj = ingredient.ingredient
                     amount = ingredient.amount
 
-                    # Формируем ключ как кортеж (объект Ingredient, количество)
                     if ingredient_obj not in ingredients:
                         ingredients[ingredient_obj] = amount
                     else:
@@ -407,49 +418,17 @@ class ShoppingCartViewSet(mixins.CreateModelMixin,
             # Создаем XML
             xml_content = create_shopping_cart_xml(request.user, ingredients)
 
-            response = HttpResponse(
-                xml_content,
-                content_type='application/xml; charset=utf-8'
+            # Используем FileResponse
+            xml_file = io.BytesIO(xml_content.encode('utf-8'))
+            response = FileResponse(
+                xml_file,
+                as_attachment=True,
+                filename='shopping_cart.xml',
+                content_type='application/xml'
             )
-            response['Content-Disposition'] = ('attachment; '
-                                               'filename="shopping_cart.xml"'
-                                               )
             return response
         except Exception as e:
             return Response(
                 {'error': str(e)},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR
             )
-
-    def destroy(self, request, *args, **kwargs):
-        recipe_id = kwargs.get('pk')
-        if not recipe_id:
-            return Response(
-                {'detail': 'ID рецепта не указан'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-        # Проверяем существование рецепта
-        recipe = get_object_or_404(Recipe, id=recipe_id)
-        try:
-            # Одно обращение к базе данных для проверки существования
-            cart_item = ShoppingCart.objects.get(
-                user=request.user,
-                recipe_id=recipe
-            )
-            cart_item.delete()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-        except ShoppingCart.DoesNotExist:
-            return Response(
-                {'detail': 'Рецепт не найден в списке покупок'},
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-
-class PublicRecipeDetailView(View):
-    def get(self, request, pk):
-        try:
-            get_object_or_404(Recipe, id=pk)
-            return HttpResponseRedirect(f'/recipes/{pk}/')
-        except ObjectDoesNotExist:
-            logger.error(f"Рецепт с ID {pk} не найден")
-            return HttpResponseRedirect('/404/')
