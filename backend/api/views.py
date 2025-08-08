@@ -1,5 +1,6 @@
 import io
 import logging
+import os
 
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch
@@ -8,6 +9,7 @@ from django.shortcuts import get_object_or_404
 from django.urls import reverse
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
+from dotenv import load_dotenv
 from rest_framework import filters, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.exceptions import PermissionDenied
@@ -23,9 +25,12 @@ from api.serializers import (CustomPasswordSerializer,
                              RecipeCreateUpdateSerializer, RecipeSerializer,
                              RecipeShortSerializer, TagSerializer,
                              UserFollowSerializer)
-from api.utils import create_shopping_cart_xml
+from api.utils import (create_shopping_cart, group_ingredients)
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
                             Tag)
+
+load_dotenv()
+EXPORT_FORMAT = os.getenv('SHOPPING_CART_EXPORT_FORMAT', 'txt')
 
 logger = logging.getLogger(__name__)
 
@@ -399,11 +404,14 @@ class RecipeViewSet(viewsets.ModelViewSet):
             )
 
     @action(detail=False, methods=['get'], url_path='download_shopping_cart')
-    def download_xml(self, request):
+    def download_shopping_cart(self, request):
         try:
             # Собираем все ингредиенты из корзины
             ingredients = {}
             carts = ShoppingCart.objects.filter(user=request.user)
+            recipes = Recipe.objects.filter(
+                id__in=carts.values_list('recipe_id', flat=True)
+            )
 
             for cart in carts:
                 for ingredient in cart.recipe.amount_ingredients.all():
@@ -415,18 +423,35 @@ class RecipeViewSet(viewsets.ModelViewSet):
                     else:
                         ingredients[ingredient_obj] += amount
 
-            # Создаем XML
-            xml_content = create_shopping_cart_xml(request.user, ingredients)
+            # Группируем ингредиенты перед передачей в create_shopping_cart
+            grouped_ingredients = group_ingredients(ingredients)
 
-            # Используем FileResponse
-            xml_file = io.BytesIO(xml_content.encode('utf-8'))
+            # Создаем контент
+            content = create_shopping_cart(
+                request,
+                request.user,
+                grouped_ingredients,
+                recipes
+            )
+
+            export_format = EXPORT_FORMAT
+            if export_format == 'xml':
+                filename = 'shopping_cart.xml'
+                content_type = 'application/xml'
+                file = io.BytesIO(content.encode('utf-8'))
+            else:
+                filename = 'shopping_cart.txt'
+                content_type = 'text/plain'
+                file = io.BytesIO(content.encode('utf-8'))
+
             response = FileResponse(
-                xml_file,
+                file,
                 as_attachment=True,
-                filename='shopping_cart.xml',
-                content_type='application/xml'
+                filename=filename,
+                content_type=content_type
             )
             return response
+
         except Exception as e:
             return Response(
                 {'error': str(e)},

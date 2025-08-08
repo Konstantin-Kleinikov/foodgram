@@ -1,68 +1,94 @@
-from xml.dom import minidom
+import os
+from datetime import datetime
 from xml.etree.ElementTree import Element, SubElement, tostring
 
-from django.utils import timezone
+from django.template import Context, Template
+from dotenv import load_dotenv
+from rest_framework.request import Request
+
+# Загрузка переменных окружения
+load_dotenv()
+EXPORT_FORMAT = os.getenv('SHOPPING_CART_EXPORT_FORMAT', 'txt')
+
+
+def create_shopping_cart(request: Request, user, ingredients, recipes):
+    """
+    Создает представление корзины покупок в формате, заданном в окружении
+    """
+    grouped_ingredients = group_ingredients(ingredients)
+
+    if EXPORT_FORMAT == 'txt':
+        return create_shopping_cart_txt(user, grouped_ingredients, recipes)
+    else:
+        return create_shopping_cart_xml(user, grouped_ingredients)
+
+
+def group_ingredients(ingredients):
+    grouped = {}
+    for ingredient_with_unit, amount in ingredients.items():
+        key = (ingredient_with_unit)
+        if key in grouped:
+            grouped[key] += amount
+        else:
+            grouped[key] = amount
+    return grouped
+
+
+def create_shopping_cart_txt(user, ingredients, recipes):
+    # Преобразуем ингредиенты в удобный формат
+    formatted_ingredients = [
+        (name, amount)  # Оставляем просто кортеж
+        for name, amount in ingredients.items()
+    ]
+
+    # Создаем контекст для шаблона
+    context = {
+        'user_name': user.get_full_name(),
+        'date': datetime.now().strftime('%d.%m.%Y'),
+        'ingredients': formatted_ingredients,
+        'recipes': recipes
+    }
+
+    # Определяем шаблон для TXT формата
+    template = Template('''
+        Отчёт по покупкам для {{ user_name }}
+        Дата: {{ date }}
+
+        Список продуктов:
+        ----------------
+        {% for ingredient_name, amount in ingredients %}
+        {{ forloop.counter }}. {{ ingredient_name|title }} - {{ amount }}
+        {% endfor %}
+
+        Рецепты:
+        --------
+        {% for recipe in recipes %}
+        * {{ recipe.name|title }} (автор: {{ recipe.author.get_full_name }})
+        {% endfor %}
+        ''')
+
+    return template.render(Context(context))
 
 
 def create_shopping_cart_xml(user, ingredients):
-    """
-        Создает XML-представление корзины покупок с группировкой ингредиентов
-        по названию и единице измерения.
-
-        Параметры:
-            user (User): Объект пользователя, для которого формируется корзина
-            ingredients (dict): Словарь ингредиентов, где ключ -
-                                объект Ingredient, а значение -
-                                количество ингредиента
-
-        Возвращает:
-            str: Форматированную XML-строку с данными корзины покупок
-
-        Структура выходного XML:
-        <ShoppingCart>
-            <User name="Имя пользователя" date="ДД.ММ.ГГГГ">
-                <Ingredient>
-                    <Name>Название ингредиента</Name>
-                    <Amount>Количество</Amount>
-                    <MeasurementUnit>Единица измерения</MeasurementUnit>
-                </Ingredient>
-                ...
-            </User>
-        </ShoppingCart>
-
-        Особенности работы:
-        - Ингредиенты группируются по названию и единице измерения
-        - Количества одинаковых ингредиентов суммируются
-        - Дата формируется в формате ДД.ММ.ГГГГ
-        - XML выводится в отформатированном виде с отступами
-        """
-    grouped_ingredients = {}
-    for ingredient, amount in ingredients.items():
-        key = (ingredient.name, ingredient.measurement_unit)
-        if key in grouped_ingredients:
-            grouped_ingredients[key] += amount
-        else:
-            grouped_ingredients[key] = amount
-
     root = Element('ShoppingCart')
     user_element = SubElement(root, 'User')
     user_element.set('name', user.get_full_name())
-    user_element.set('date', timezone.now().strftime('%d.%m.%Y'))
+    user_element.set('date', datetime.now().strftime('%d.%m.%Y'))
 
-    for (name, measurement_unit), total_amount in grouped_ingredients.items():
+    for (name, measurement_unit), total_amount in ingredients.items():
         ingredient_element = SubElement(user_element, 'Ingredient')
         SubElement(ingredient_element, 'Name').text = name
         SubElement(ingredient_element, 'Amount').text = str(total_amount)
         SubElement(
-            ingredient_element,
-            'MeasurementUnit'
+            ingredient_element, 'MeasurementUnit'
         ).text = measurement_unit
 
     return prettify(root)
 
 
 def prettify(elem):
-    """Возвращает красиво отформатированную XML строку"""
+    from xml.dom import minidom
     rough_string = tostring(elem, 'utf-8')
     reparsed = minidom.parseString(rough_string)
     return reparsed.toprettyxml(indent="\t", encoding='utf-8').decode('utf-8')
