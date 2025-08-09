@@ -25,7 +25,7 @@ from api.serializers import (CustomPasswordSerializer,
                              RecipeCreateUpdateSerializer, RecipeSerializer,
                              RecipeShortSerializer, TagSerializer,
                              UserFollowSerializer)
-from api.utils import (create_shopping_cart, group_ingredients)
+from api.utils import create_shopping_cart, group_ingredients
 from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
                             Tag)
 

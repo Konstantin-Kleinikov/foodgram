@@ -1,33 +1,25 @@
 import json
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 from django.conf import settings
 from django.core.management.base import BaseCommand
-from django.db import transaction
+from django.db import connection, transaction
 
 from recipes.models import Ingredient
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.DEBUG)
 
-console_handler = logging.StreamHandler()
-console_handler.setLevel(logging.DEBUG)
-
-formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-console_handler.setFormatter(formatter)
-
-logger.addHandler(console_handler)
-
 
 class Command(BaseCommand):
-    help = 'Загрузка ингредиентов из JSON-файла с использованием bulk_create'
+    help = 'Сверхбыстрая загрузка продуктов из JSON'
 
     def handle(self, *args, **kwargs):
-        file_path = (Path(settings.BASE_DIR)
-                     .parent / 'data' / 'ingredients.json'
-                     )
-        ingredients_list = []
+        file_path = Path(
+            settings.BASE_DIR
+        ).parent / 'data' / 'ingredients.json'
 
         try:
             logger.info('Начинается загрузка данных')
@@ -37,45 +29,14 @@ class Command(BaseCommand):
                 ingredients_data = json.load(file)
                 logger.debug(f'Получено {len(ingredients_data)} записей')
 
-            success_count = 0
-            fail_count = 0
+            # Предварительная валидация и подготовка данных
+            valid_data = self.validate_data(ingredients_data)
 
-            # Собираем список объектов для массовой вставки
-            for ingredient_data in ingredients_data:
-                try:
-                    ingredients_list.append(
-                        Ingredient(
-                            name=ingredient_data['name'],
-                            measurement_unit=ingredient_data[
-                                'measurement_unit'
-                            ]
-                        )
-                    )
-                    success_count += 1
-
-                except Exception as e:
-                    fail_count += 1
-                    logger.error(
-                        'Ошибка при обработке ингредиента '
-                        f'{ingredient_data}: {str(e)}')
-
-            # Массовая вставка данных
+            # Оптимизированная массовая вставка с параллелизмом
             with transaction.atomic():
-                try:
-                    created_count = len(
-                        Ingredient.objects.bulk_create(
-                            ingredients_list, batch_size=1000)
-                    )
-                    logger.info(f'Успешно создано {created_count} записей')
+                self.parallel_bulk_insert(valid_data)
 
-                except Exception as e:
-                    logger.critical(f'Ошибка при массовой загрузке: {str(e)}')
-                    raise
-
-            logger.info(
-                f'Загрузка завершена. Обработано: {success_count}, '
-                f'Ошибок: {fail_count}'
-            )
+            logger.info('Загрузка завершена успешно')
             self.stdout.write(self.style.SUCCESS('Данные успешно загружены'))
 
         except FileNotFoundError:
@@ -89,3 +50,84 @@ class Command(BaseCommand):
         except Exception as e:
             logger.critical(f'Критическая ошибка: {str(e)}')
             self.stdout.write(self.style.ERROR(f'Произошла ошибка: {str(e)}'))
+
+    def validate_data(self, data):
+        """Предварительная валидация и подготовка данных"""
+        valid_ingredients = []
+        for item in data:
+            try:
+                name = item['name']
+                unit = item['measurement_unit']
+                if not name or not unit:
+                    raise ValueError('Неполные данные')
+                valid_ingredients.append((name, unit))
+            except (KeyError, ValueError) as e:
+                logger.warning(f'Пропущена запись {item}: {str(e)}')
+        return valid_ingredients
+
+    def parallel_bulk_insert(self, data):
+        """Параллельная массовая вставка"""
+        batch_size = 10000  # Размер батча для параллельной вставки
+        batches = [data[i:i + batch_size]
+                   for i in range(0, len(data), batch_size)]
+
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            executor.map(self.bulk_insert_batch, batches)
+
+    def bulk_insert_batch(self, batch):
+        """Вставка одного батча"""
+        objects = [
+            Ingredient(name=name, measurement_unit=unit)
+            for name, unit in batch
+        ]
+        Ingredient.objects.bulk_create(objects, batch_size=len(batch))
+
+        # Очищаем кеш запросов после каждого батча
+        connection.close()
+
+    def optimize_db_settings(self):
+        """Оптимизация настроек БД перед массовой вставкой"""
+        if connection.vendor == 'postgresql':
+            # Отключаем триггеры и индексы для PostgreSQL
+            with connection.cursor() as cursor:
+                cursor.execute('SET synchronous_commit = off;')
+                cursor.execute(
+                    'ALTER TABLE recipes_ingredient DISABLE TRIGGER ALL;'
+                )
+                cursor.execute(
+                    'LOCK TABLE recipes_ingredient IN EXCLUSIVE MODE;'
+                )
+
+        elif connection.vendor == 'sqlite':
+            # Оптимизация для SQLite
+            with connection.cursor() as cursor:
+                cursor.execute('PRAGMA synchronous = OFF;')
+                cursor.execute('PRAGMA journal_mode = MEMORY;')
+
+    def post_insert_cleanup(self):
+        """Восстановление настроек БД после вставки"""
+        try:
+            if connection.vendor == 'postgresql':
+                # Включаем обратно триггеры и индексы
+                with connection.cursor() as cursor:
+                    cursor.execute(
+                        'ALTER TABLE recipes_ingredient ENABLE TRIGGER ALL;'
+                    )
+                    cursor.execute('ANALYZE recipes_ingredient;')
+                    cursor.execute('VACUUM recipes_ingredient;')
+                    cursor.execute('SET synchronous_commit = on;')
+
+            elif connection.vendor == 'sqlite':
+                # Возвращаем стандартные настройки
+                with connection.cursor() as cursor:
+                    cursor.execute('PRAGMA synchronous = NORMAL;')
+                    cursor.execute('PRAGMA journal_mode = DELETE;')
+                    cursor.execute('VACUUM;')
+
+            # Очищаем кеш запросов
+            connection.close()
+            logger.info('Настройки БД восстановлены')
+
+        except Exception as e:
+            logger.error(f'Ошибка при восстановлении настроек БД: {str(e)}')
+            raise
