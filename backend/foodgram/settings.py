@@ -118,12 +118,6 @@ AUTH_PASSWORD_VALIDATORS = [
         'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator',
     },
     {
-        'NAME': 'recipes.validators.MaxLengthValidator',
-        'OPTIONS': {
-            'max_length': PASSWORD_MAX_LENGTH
-        }
-    },
-    {
         'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator',
     },
     {

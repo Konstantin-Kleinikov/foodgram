@@ -27,7 +27,7 @@
 ## Как развернуть проект локально
 
 ### 1. Клонируйте репозиторий на компьютер
-```shell
+```bash
 git clone git clone <https or SSH URL>
 ```
 
@@ -45,11 +45,11 @@ git clone git clone <https or SSH URL>
 - POSTGRES_PASSWORD=your_db_password
 - DB_HOST=db
 - DB_PORT=5432
-- SHOPPING_CART_EXPORT_FORMAT=txt
+- SHOPPING_CART_EXPORT_FORMAT=txt  # или xml
 ```
 ### 3. Установите зависимости и выполните миграции
 В терминале перейдите в директорию backend и выполните следующие команды:
-```python
+```bash
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
@@ -78,17 +78,17 @@ python manage.py runserver
 локальную машину. Подготовить и загрузить образы на Docker Hub.
 
 Клонировать репозиторий:
-```shell
+```bash
 git clone git clone <https or SSH URL>
 ```
 
 Перейти в каталог проекта:
-```shell
+```bash
 cd foodgram
 ```
 
 Создать .env:
-```shell
+```bash
 touch .env
 ```
 

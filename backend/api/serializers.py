@@ -12,7 +12,7 @@ from rest_framework.validators import UniqueValidator
 
 from api.constants import (MIN_AMOUNT_VALUE, MIN_COOKING_TIME_VALUE,
                            MIN_ID_VALUE)
-from recipes.constants import MAX_RECIPES_LIMIT, MIN_RECIPES_LIMIT
+from recipes.constants import MIN_RECIPES_LIMIT
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
@@ -483,19 +483,12 @@ class UserFollowSerializer(FoodgramUserSerializer):
 
     def get_recipes(self, user):
         request = self.context.get('request')
-        try:
-            # Используем "бесконечность" для максимального значения
-            recipes_limit = int(request.GET.get('recipes_limit', 10 ** 10))
-            limit = int(request.GET.get('limit', 10 ** 10))
-        except ValueError:
-            return []
+        # Используем "бесконечность" для максимального значения
+        recipes_limit = int(request.GET.get('recipes_limit', 10 ** 10))
+        limit = int(request.GET.get('limit', 10 ** 10))
 
         # Определяем финальное значение limit
-        final_limit = min(
-            max(recipes_limit, MIN_RECIPES_LIMIT),
-            max(limit, MIN_RECIPES_LIMIT),
-            MAX_RECIPES_LIMIT
-        )
+        final_limit = max(min(recipes_limit, limit), MIN_RECIPES_LIMIT)
 
         # Получаем рецепты с учетом лимита
         recipes = user.recipes.all()[:final_limit]
