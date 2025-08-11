@@ -79,10 +79,10 @@ REST_FRAMEWORK = {
     ],
     'DEFAULT_PAGINATION_CLASS': 'rest_framework.pagination.LimitOffsetPagination',
     'PAGE_SIZE': 10,
-    'DEFAULT_LIMIT': 10,  # лимит по умолчанию
-    'MAX_LIMIT': 100,     # максимальный лимит
-    'LIMIT_QUERY_PARAM': 'limit',  # параметр для указания лимита
-    'OFFSET_QUERY_PARAM': 'offset',  # параметр для указания смещения
+    'DEFAULT_LIMIT': 10,
+    'MAX_LIMIT': 100,
+    'LIMIT_QUERY_PARAM': 'limit',
+    'OFFSET_QUERY_PARAM': 'offset',
     'ENFORCE_LIMITS': True,
 }
 
