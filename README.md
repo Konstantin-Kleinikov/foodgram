@@ -45,7 +45,6 @@ git clone git clone <https or SSH URL>
 - POSTGRES_PASSWORD=your_db_password
 - DB_HOST=db
 - DB_PORT=5432
-- SHOPPING_CART_EXPORT_FORMAT=txt  # или xml
 ```
 ### 3. Установите зависимости и выполните миграции
 В терминале перейдите в директорию backend и выполните следующие команды:
@@ -106,7 +105,6 @@ touch .env
 - POSTGRES_PASSWORD=your_db_password
 - DB_HOST=db
 - DB_PORT=5432
-- SHOPPING_CART_EXPORT_FORMAT=txt
 ```
 ### 3. Заполните переменные Secrets в GitHub
 В Settings проекта перейдите в Secrets and variables и зайдите на страницу Actions.

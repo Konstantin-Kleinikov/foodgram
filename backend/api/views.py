@@ -3,10 +3,13 @@ import logging
 import os
 
 from django.contrib.auth import get_user_model
-from django.db.models import Prefetch
+from django.db import models
+from django.db.models import Prefetch, F
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
+from django.template.loader import render_to_string
 from django.urls import reverse
+from django.utils.timezone import now
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
 from dotenv import load_dotenv
@@ -25,9 +28,8 @@ from api.serializers import (CustomPasswordSerializer,
                              RecipeCreateUpdateSerializer, RecipeSerializer,
                              RecipeShortSerializer, TagSerializer,
                              UserFollowSerializer)
-from api.utils import create_shopping_cart, group_ingredients
-from recipes.models import (Favorite, Follow, Ingredient, Recipe, ShoppingCart,
-                            Tag)
+from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
+                            Recipe, ShoppingCart, Tag)
 
 load_dotenv()
 EXPORT_FORMAT = os.getenv('SHOPPING_CART_EXPORT_FORMAT', 'txt')
@@ -406,51 +408,42 @@ class RecipeViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=['get'], url_path='download_shopping_cart')
     def download_shopping_cart(self, request):
         try:
-            # Собираем все ингредиенты из корзины
-            ingredients = {}
-            carts = ShoppingCart.objects.filter(user=request.user)
+            user = request.user
             recipes = Recipe.objects.filter(
-                id__in=carts.values_list('recipe_id', flat=True)
+                carts__user=user
             )
 
-            for cart in carts:
-                for ingredient in cart.recipe.amount_ingredients.all():
-                    ingredient_obj = ingredient.ingredient
-                    amount = ingredient.amount
+            ingredients = IngredientRecipe.objects.filter(
+                recipe__in=recipes
+            ).annotate(
+                name=F('ingredient__name'),
+                unit=F('ingredient__measurement_unit'),
+                total_amount=models.Sum('amount')
+            ).values(
+                'name',
+                'unit',
+                'total_amount'
+            ).order_by('name')
 
-                    if ingredient_obj not in ingredients:
-                        ingredients[ingredient_obj] = amount
-                    else:
-                        ingredients[ingredient_obj] += amount
+            if not ingredients:
+                return Response(
+                    {'error': 'Корзина пуста'},
+                    status=status.HTTP_400_BAD_REQUEST
+                )
 
-            # Группируем ингредиенты перед передачей в create_shopping_cart
-            grouped_ingredients = group_ingredients(ingredients)
+            content = render_to_string('shopping_cart_list.txt', {
+                'user': user,
+                'date': now().date(),
+                'ingredients': ingredients,
+                'recipes': recipes,
+            })
 
-            # Создаем контент
-            content = create_shopping_cart(
-                request,
-                request.user,
-                grouped_ingredients,
-                recipes
-            )
-
-            export_format = EXPORT_FORMAT
-            if export_format == 'xml':
-                filename = 'shopping_cart.xml'
-                content_type = 'application/xml'
-                file = io.BytesIO(content.encode('utf-8'))
-            else:
-                filename = 'shopping_cart.txt'
-                content_type = 'text/plain'
-                file = io.BytesIO(content.encode('utf-8'))
-
-            response = FileResponse(
-                file,
+            return FileResponse(
+                io.BytesIO(content.encode('utf-8')),
                 as_attachment=True,
-                filename=filename,
-                content_type=content_type
+                filename='shopping_cart_list.txt',
+                content_type='text/plain'
             )
-            return response
 
         except Exception as e:
             return Response(

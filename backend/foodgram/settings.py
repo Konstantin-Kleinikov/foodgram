@@ -4,7 +4,6 @@ from pathlib import Path
 from django.core.management.utils import get_random_secret_key
 from dotenv import load_dotenv
 
-from recipes.constants import PASSWORD_MAX_LENGTH
 
 load_dotenv()
 

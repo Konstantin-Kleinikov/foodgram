@@ -1,0 +1,14 @@
+Отчёт по покупкам для {{ user.get_full_name|default:user.username }}
+Дата: {{ date }}
+
+Список продуктов:
+----------------
+{% for item in ingredients %}
+{{ forloop.counter }}. {{ item.name|capfirst }} ({{ item.unit }}) — {{ item.total_amount }}
+{% endfor %}
+
+Рецепты:
+--------
+{% for recipe in recipes %}
+* {{ recipe.name|title }} (автор: {{ recipe.author.get_full_name }})
+{% endfor %}

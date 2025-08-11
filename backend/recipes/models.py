@@ -70,7 +70,9 @@ class FoodgramUserManager(BaseUserManager):
         if extra_fields.get('is_staff') is not True:
             raise ValueError('Суперпользователь должен иметь is_staff=True.')
         if extra_fields.get('is_superuser') is not True:
-            raise ValueError('Суперпользователь должен иметь is_superuser=True.')
+            raise ValueError(
+                'Суперпользователь должен иметь is_superuser=True.'
+            )
 
         return self.create_user(
             username=username,
@@ -78,6 +80,7 @@ class FoodgramUserManager(BaseUserManager):
             password=password,
             **extra_fields
         )
+
 
 class FoodgramUser(AbstractUser):
     username = models.CharField(
