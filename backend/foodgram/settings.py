@@ -230,5 +230,6 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:3000',
     'https://yp-foodgram.zapto.org',
-    'http://web:8000'
+    'http://web:8000',
+    'https://84.201.137.0/'
 ]
