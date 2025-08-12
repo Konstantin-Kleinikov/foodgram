@@ -1,7 +1,7 @@
 from django.contrib.auth import get_user_model
 from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
 from recipes.constants import (COOKING_TIME_MIN_VALUE, EMAIL_MAX_LENGTH,
@@ -82,11 +82,19 @@ class FoodgramUserManager(BaseUserManager):
         )
 
 
+username_validator = RegexValidator(
+    regex=r'^[\w.@-]+$',
+    message=('Имя пользователя может содержать'
+             ' только буквы, цифры и символы @ . - _')
+)
+
+
 class FoodgramUser(AbstractUser):
     username = models.CharField(
         'Никнейм пользователя',
         max_length=USERNAME_MAX_LENGTH,
         unique=True,
+        validators=[username_validator],
     )
     email = models.EmailField(
         'Адрес электронной почты',
