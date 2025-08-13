@@ -4,7 +4,7 @@
 Список продуктов:
 ----------------
 {% for item in ingredients %}
-{{ forloop.counter }}. {{ item.name|capfirst }} ({{ item.unit }}) — {{ item.total_amount }}
+{{ forloop.counter }}. {{ item.ingredient__name|capfirst }} ({{ item.ingredient__measurement_unit }}) — {{ item.total_amount }}
 {% endfor %}
 
 Рецепты:
