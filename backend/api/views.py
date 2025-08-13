@@ -3,8 +3,7 @@ import logging
 import os
 
 from django.contrib.auth import get_user_model
-from django.db import models
-from django.db.models import F, Prefetch
+from django.db.models import Prefetch, Sum
 from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.template.loader import render_to_string
@@ -415,15 +414,12 @@ class RecipeViewSet(viewsets.ModelViewSet):
 
             ingredients = IngredientRecipe.objects.filter(
                 recipe__in=recipes
-            ).annotate(
-                name=F('ingredient__name'),
-                unit=F('ingredient__measurement_unit'),
-                total_amount=models.Sum('amount')
             ).values(
-                'name',
-                'unit',
-                'total_amount'
-            ).order_by('name')
+                'ingredient__name',
+                'ingredient__measurement_unit'
+            ).annotate(
+                total_amount=Sum('amount')
+            ).order_by('ingredient__name')
 
             if not ingredients:
                 return Response(
