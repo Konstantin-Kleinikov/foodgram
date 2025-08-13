@@ -172,7 +172,6 @@ class FoodgramUserViewSet(DjoserUserViewSet):
         """
         Список подписок текущего пользователя
         """
-        user = request.user
         subscriptions = UserModel.objects.filter(
             pk__in=Follow.objects
             .filter(user=request.user)
