@@ -8,5 +8,5 @@ logger = logging.getLogger(__name__)
 
 
 def redirect_short_link(request, recipe_id):
-    recipe = get_object_or_404(Recipe, id=int(recipe_id))
-    return redirect('public-recipe-detail', pk=recipe.id)
+    get_object_or_404(Recipe, id=recipe_id)
+    return redirect(f'/recipes/{recipe_id}/')
