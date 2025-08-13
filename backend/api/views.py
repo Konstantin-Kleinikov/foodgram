@@ -173,7 +173,11 @@ class FoodgramUserViewSet(DjoserUserViewSet):
         Список подписок текущего пользователя
         """
         user = request.user
-        subscriptions = UserModel.objects.filter(followers__user=user)
+        subscriptions = UserModel.objects.filter(
+            pk__in=Follow.objects
+            .filter(user=request.user)
+            .values_list('following__id', flat=True)
+        )
         page = self.paginate_queryset(subscriptions)
         if page is not None:
             serializer = UserFollowSerializer(
