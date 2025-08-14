@@ -10,9 +10,8 @@ from rest_framework import serializers
 from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueValidator
 
-from api.constants import (MIN_AMOUNT_VALUE, MIN_COOKING_TIME_VALUE,
-                           MIN_ID_VALUE)
-from recipes.constants import MIN_RECIPES_LIMIT
+from recipes.constants import (MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT,
+                               MIN_INGREDIENT_ID, MIN_RECIPES_QTY)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
@@ -124,12 +123,12 @@ class IngredientSerializer(serializers.ModelSerializer):
 class IngredientUpdateSerializer(serializers.Serializer):
     id = serializers.IntegerField(
         validators=[
-            MinValueValidator(MIN_ID_VALUE),
+            MinValueValidator(MIN_INGREDIENT_ID),
             UniqueValidator(queryset=Ingredient.objects.all())
         ],
     )
     amount = serializers.IntegerField(
-        validators=[MinValueValidator(MIN_AMOUNT_VALUE)],
+        validators=[MinValueValidator(MIN_INGREDIENT_AMOUNT)],
     )
 
 
@@ -214,7 +213,7 @@ class RecipeCreateUpdateSerializer(serializers.ModelSerializer):
         required=True,
         validators=[
             MinValueValidator(
-                MIN_COOKING_TIME_VALUE,
+                MIN_COOKING_TIME,
             ),
         ]
     )
@@ -488,7 +487,7 @@ class UserFollowSerializer(FoodgramUserSerializer):
         limit = int(request.GET.get('limit', 10 ** 10))
 
         # Определяем финальное значение limit
-        final_limit = max(min(recipes_limit, limit), MIN_RECIPES_LIMIT)
+        final_limit = max(min(recipes_limit, limit), MIN_RECIPES_QTY)
 
         # Получаем рецепты с учетом лимита
         recipes = user.recipes.all()[:final_limit]

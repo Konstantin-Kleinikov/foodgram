@@ -3,9 +3,11 @@ from django.contrib.admin import SimpleListFilter
 from django.db.models import Count
 from django.utils.safestring import mark_safe
 
-from recipes.constants import (FILTER_BETWEEN, FILTER_HIGH_VALUE,
-                               FILTER_LESS_THAN, FILTER_LOW_VALUE,
-                               FILTER_MIDDLE_VALUE, FILTER_MORE_THAN)
+from recipes.constants import (FILTER_BETWEEN, FILTER_BETWEEN_NAME,
+                               FILTER_HIGH_VALUE, FILTER_LESS_THAN,
+                               FILTER_LESS_THAN_NAME, FILTER_LOW_VALUE,
+                               FILTER_MIDDLE_VALUE, FILTER_MORE_THAN,
+                               FILTER_MORE_THAN_NAME)
 from recipes.filters import (HasFavoritesFilter, HasFollowersFilter,
                              HasRecipesFilter)
 from recipes.models import (Favorite, Follow, FoodgramUser, Ingredient,
@@ -17,9 +19,9 @@ class RecipeCountFilter(SimpleListFilter):
     parameter_name = 'recipe_count'
 
     LOOKUP_CHOICES = [
-        (FILTER_LESS_THAN, 'Менее 10 рецептов'),
-        (FILTER_BETWEEN, 'От 10 до 50 рецептов'),
-        (FILTER_MORE_THAN, 'Более 50 рецептов'),
+        (FILTER_LESS_THAN, FILTER_LESS_THAN_NAME),
+        (FILTER_BETWEEN, FILTER_BETWEEN_NAME),
+        (FILTER_MORE_THAN, FILTER_MORE_THAN_NAME),
     ]
 
     def lookups(self, request, model_admin):
@@ -177,7 +179,7 @@ class FoodgramUserAdmin(admin.ModelAdmin):
             return mark_safe(
                 f'<img src="{user.avatar.url}" width="50" height="50">'
             )
-        return 'Нет аватара'
+        return '-'
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
@@ -202,7 +204,7 @@ class TagAdmin(admin.ModelAdmin):
             recipe_count=Count('recipes')
         )
 
-    @admin.display(description='Количество рецептов')
+    @admin.display(description='Рецептов')
     def recipe_count(self, tag):
         # Возвращаем количество рецептов
         return tag.recipe_count
@@ -225,7 +227,7 @@ class IngredientAdmin(admin.ModelAdmin):
             )
         )
 
-    @admin.display(description='Количество рецептов')
+    @admin.display(description='Рецептов')
     def recipe_count(self, ingredient):
         return ingredient.recipe_count
 

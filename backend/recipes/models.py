@@ -3,8 +3,8 @@ from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
-from recipes.constants import (COOKING_TIME_MIN_VALUE, EMAIL_MAX_LENGTH,
-                               INGREDIENT_MAX_LENGTH, INGREDIENT_MIN_VALUE,
+from recipes.constants import (EMAIL_MAX_LENGTH, INGREDIENT_MAX_LENGTH,
+                               INGREDIENT_MIN_QTY, MIN_COOKING_TIME,
                                NAME_MAX_LENGTH, RECIPE_NAME_MAX_LENGTH,
                                SLUG_MAX_LENGTH, TAG_MAX_LENGTH,
                                TEXT_FIELDS_DISPLAY_LENGTH,
@@ -143,9 +143,9 @@ class Recipe(models.Model):
     cooking_time = models.PositiveIntegerField(
         'Время приготовления (мин.)',
         validators=(MinValueValidator(
-            COOKING_TIME_MIN_VALUE,
+            MIN_COOKING_TIME,
             message='Время приготовления не может быть меньше '
-                    f'{COOKING_TIME_MIN_VALUE} минут.'
+                    f'{MIN_COOKING_TIME} минут.'
         ),
         ),
     )
@@ -178,8 +178,8 @@ class IngredientRecipe(models.Model):
     amount = models.PositiveSmallIntegerField(
         'Количество',
         validators=(MinValueValidator(
-            INGREDIENT_MIN_VALUE,
-            message=f'Кол-во не может быть меньше {INGREDIENT_MIN_VALUE}.'),
+            INGREDIENT_MIN_QTY,
+            message=f'Кол-во не может быть меньше {INGREDIENT_MIN_QTY}.'),
         )
     )
 

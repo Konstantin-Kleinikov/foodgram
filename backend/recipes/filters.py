@@ -5,18 +5,13 @@ class BaseHasFilter(SimpleListFilter):
     """Базовый класс для фильтров наличия чего-либо"""
 
     # Общие параметры для всех фильтров
-    _lookups = [
+    LOOKUP_CHOICES = [
         ('yes', 'Да'),
         ('no', 'Нет'),
     ]
 
     def lookups(self, request, model_admin):
-        return self._lookups
-
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Сохраняем поле для фильтрации
-        self.field_name = self.__class__.field_name
+        return self.LOOKUP_CHOICES
 
     def queryset(self, request, queryset):
         if self.value() == 'yes':
