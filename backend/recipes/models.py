@@ -1,5 +1,4 @@
 from django.contrib.auth import get_user_model
-from django.contrib.auth.base_user import BaseUserManager
 from django.contrib.auth.models import AbstractUser
 from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
@@ -11,77 +10,6 @@ from recipes.constants import (COOKING_TIME_MIN_VALUE, EMAIL_MAX_LENGTH,
                                TEXT_FIELDS_DISPLAY_LENGTH,
                                UNIT_OF_MEASURE_MAX_LENGTH, USERNAME_MAX_LENGTH)
 
-
-class FoodgramUserManager(BaseUserManager):
-    """
-    Менеджер пользовательской модели FoodgramUser, где email является
-    уникальным идентификатором для аутентификации вместо username.
-    """
-
-    def create_user(
-            self,
-            username=None,
-            email=None,
-            password=None,
-            **extra_fields
-    ):
-        """
-        Создает и сохраняет пользователя с указанным email и паролем.
-        """
-        if not email:
-            raise ValueError('Email должен быть указан')
-
-        email = self.normalize_email(email)
-
-        # Если username не указан, создаем его из email
-        if not username:
-            username = email.split('@')[0]
-            # Проверка уникальности username
-            i = 1
-            temp_username = username
-            while self.model.objects.filter(username=temp_username).exists():
-                temp_username = f"{username}{i}"
-                i += 1
-            username = temp_username
-
-        user = self.model(
-            username=username,
-            email=email,
-            **extra_fields
-        )
-        user.set_password(password)
-        user.save(using=self._db)
-        return user
-
-    def create_superuser(
-            self,
-            username=None,
-            email=None,
-            password=None,
-            **extra_fields
-    ):
-        """
-        Создает и сохраняет суперпользователя.
-        """
-        extra_fields.setdefault('is_staff', True)
-        extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('is_active', True)
-
-        if extra_fields.get('is_staff') is not True:
-            raise ValueError('Суперпользователь должен иметь is_staff=True.')
-        if extra_fields.get('is_superuser') is not True:
-            raise ValueError(
-                'Суперпользователь должен иметь is_superuser=True.'
-            )
-
-        return self.create_user(
-            username=username,
-            email=email,
-            password=password,
-            **extra_fields
-        )
-
-
 username_validator = RegexValidator(
     regex=r'^[\w.@-]+$',
     message=('Имя пользователя может содержать'
@@ -91,7 +19,7 @@ username_validator = RegexValidator(
 
 class FoodgramUser(AbstractUser):
     username = models.CharField(
-        'Никнейм пользователя',
+        'Никнейм',
         max_length=USERNAME_MAX_LENGTH,
         unique=True,
         validators=[username_validator],
@@ -118,7 +46,6 @@ class FoodgramUser(AbstractUser):
         blank=False,
         max_length=NAME_MAX_LENGTH,
     )
-    objects = FoodgramUserManager()
 
     class Meta:
         verbose_name = 'пользователь'
@@ -234,7 +161,7 @@ class Recipe(models.Model):
         default_related_name = 'recipes'
 
     def __str__(self) -> str:
-        return f'{self.name[:TEXT_FIELDS_DISPLAY_LENGTH]}'
+        return self.name[:TEXT_FIELDS_DISPLAY_LENGTH]
 
 
 class IngredientRecipe(models.Model):
@@ -304,7 +231,7 @@ class BaseUserRecipeModel(models.Model):
 class ShoppingCart(BaseUserRecipeModel):
     """Модель списка покупок."""
 
-    class Meta:
+    class Meta(BaseUserRecipeModel.Meta):
         verbose_name = 'список покупок'
         verbose_name_plural = 'Списки покупок'
         default_related_name = 'carts'
@@ -313,7 +240,7 @@ class ShoppingCart(BaseUserRecipeModel):
 class Favorite(BaseUserRecipeModel):
     """Модель для избранных рецептов."""
 
-    class Meta:
+    class Meta(BaseUserRecipeModel.Meta):
         verbose_name = 'избранный рецепт'
         verbose_name_plural = 'Избранные рецепты'
         default_related_name = 'favorites'

@@ -1,12 +1,11 @@
-import math
-
 from django.contrib import admin
 from django.contrib.admin import SimpleListFilter
-from django.db.models import Count, Max, Min
-from django.utils.decorators import method_decorator
+from django.db.models import Count
 from django.utils.safestring import mark_safe
-from django.utils.safestring import mark_safe as mark_safe_decorator
 
+from recipes.constants import (FILTER_BETWEEN, FILTER_HIGH_VALUE,
+                               FILTER_LESS_THAN, FILTER_LOW_VALUE,
+                               FILTER_MIDDLE_VALUE, FILTER_MORE_THAN)
 from recipes.filters import (HasFavoritesFilter, HasFollowersFilter,
                              HasRecipesFilter)
 from recipes.models import (Favorite, Follow, FoodgramUser, Ingredient,
@@ -17,110 +16,85 @@ class RecipeCountFilter(SimpleListFilter):
     title = 'Количество рецептов'
     parameter_name = 'recipe_count'
 
+    LOOKUP_CHOICES = [
+        (FILTER_LESS_THAN, 'Менее 10 рецептов'),
+        (FILTER_BETWEEN, 'От 10 до 50 рецептов'),
+        (FILTER_MORE_THAN, 'Более 50 рецептов'),
+    ]
+
     def lookups(self, request, model_admin):
-        return [
-            ('<10', 'Менее 10 рецептов'),
-            ('10-50', 'От 10 до 50 рецептов'),
-            ('>50', 'Более 50 рецептов'),
-        ]
+        return self.LOOKUP_CHOICES
 
     def queryset(self, request, queryset):
-        if self.value() == '<10':
-            return queryset.filter(recipe_count__lt=10, recipe_count__gt=0)
-        if self.value() == '10-50':
-            return queryset.filter(recipe_count__gte=10, recipe_count__lte=50)
-        if self.value() == '>50':
-            return queryset.filter(recipe_count__gt=50)
+        if self.value() == FILTER_LESS_THAN:
+            return queryset.filter(
+                recipe_count__lt=FILTER_MIDDLE_VALUE,
+                recipe_count__gte=FILTER_LOW_VALUE
+            )
+        if self.value() == FILTER_BETWEEN:
+            return queryset.filter(
+                recipe_count__gte=FILTER_MIDDLE_VALUE,
+                recipe_count__lte=FILTER_HIGH_VALUE
+            )
+        if self.value() == FILTER_MORE_THAN:
+            return queryset.filter(
+                recipe_count__gt=FILTER_HIGH_VALUE
+            )
         return queryset
 
 
 class CookingTimeFilter(SimpleListFilter):
-    title = ('Время приготовления')
+    title = 'Время приготовления'
     parameter_name = 'cooking_time'
 
-    # Добавляем атрибуты для хранения порогов
-    short_threshold = None
-    medium_threshold = None
-
-    def __init__(self, request, params, model, model_admin):
-        super().__init__(request, params, model, model_admin)
-        # Сохраняем параметры для последующего использования
-        self.request = request
-        self.model_admin = model_admin
-
-        # Откладываем расчет порогов до момента, когда они точно понадобятся
-        self._calculate_thresholds_if_needed()
-
-    def _calculate_thresholds(self):
-        try:
-            time_stats = Recipe.objects.aggregate(
-                min_time=Min('cooking_time'),
-                max_time=Max('cooking_time')
-            )
-
-            if (time_stats['max_time'] is None
-                    or time_stats['min_time'] is None):
-                self.short_threshold = 0
-                self.medium_threshold = 0
-            else:
-                range_time = time_stats['max_time'] - time_stats['min_time']
-                self.short_threshold = (
-                    math.ceil(time_stats['min_time'] + range_time / 3)
-                )
-                self.medium_threshold = (
-                    math.ceil(time_stats['min_time'] + (range_time * 2) / 3)
-                )
-
-            # Добавляем отладочный вывод
-            print(f"min_time: {time_stats['min_time']}")
-            print(f"max_time: {time_stats['max_time']}")
-            print(f"short_threshold: {self.short_threshold}")
-            print(f"medium_threshold: {self.medium_threshold}")
-
-        except Exception as e:
-            print(f"Ошибка при расчете порогов: {e}")
-            self.short_threshold = 0
-            self.medium_threshold = 0
-
-    def _calculate_thresholds_if_needed(self):
-        if self.short_threshold is None or self.medium_threshold is None:
-            self._calculate_thresholds()
+    def _range_filter(self, bounds, recipes=None):
+        return (
+            recipes
+            or self.recipes
+            or Recipe.objects.all()
+        ).filter(cooking_time__range=bounds)
 
     def lookups(self, request, model_admin):
-        # Гарантированно рассчитываем пороги перед формированием опций
-        self._calculate_thresholds_if_needed()
+        self.recipes = model_admin.get_queryset(request)
+        times = list(self.recipes.values_list('cooking_time', flat=True))
+        if len(set(times)) < 3:
+            return []
 
-        # Форматируем значения с проверкой на корректность
-        short_value = (
-            self.short_threshold
-            if self.short_threshold is not None
-            else 0
-        )
-        medium_value = (
-            self.medium_threshold
-            if self.medium_threshold is not None
-            else 0
-        )
+        times.sort()
+        short_time_max = times[len(times) // 3]
+        medium_time_max = times[2 * len(times) // 3]
 
-        return (
-            ('short', f'Быстрое (до {short_value} мин)'),
-            ('medium', f'Среднее (до {medium_value} мин)'),
-            ('long', f'Долгое (более {medium_value} мин)'),
-        )
+        self.thresholds = {
+            'fast': {
+                'range': (0, short_time_max - 1),
+                'label': f'меньше {short_time_max} мин',
+            },
+            'medium': {
+                'range': (short_time_max, medium_time_max - 1),
+                'label': f'не дольше {medium_time_max} мин',
+            },
+            'long': {
+                'range': (medium_time_max, times[-1] + 1),
+                'label': 'долгие',
+            },
+        }
+
+        return [
+            (
+                key,
+                f"{value['label']} "
+                f"({self._range_filter(value['range']).count()})"
+            )
+            for key, value in self.thresholds.items()
+        ]
 
     def queryset(self, request, queryset):
-        # Гарантированно рассчитываем пороги перед фильтрацией
-        self._calculate_thresholds_if_needed()
-
-        if self.value() == 'short':
-            return queryset.filter(cooking_time__lte=self.short_threshold)
-        if self.value() == 'medium':
-            return queryset.filter(
-                cooking_time__gt=self.short_threshold,
-                cooking_time__lte=self.medium_threshold
+        selected = self.value()
+        if selected in self.thresholds:
+            return self._range_filter(
+                bounds=self.thresholds[selected]['range'],
+                recipes=queryset
             )
-        if self.value() == 'long':
-            return queryset.filter(cooking_time__gt=self.medium_threshold)
         return queryset
 
 
@@ -185,23 +159,24 @@ class FoodgramUserAdmin(admin.ModelAdmin):
         """Получение полного имени"""
         return user.get_full_name()
 
-    @admin.display(description='Количество рецептов')
+    @admin.display(description='Рецептов')
     def recipe_count(self, user):
         return user.recipes.count()
 
-    @admin.display(description='Количество подписок')
+    @admin.display(description='Подписок')
     def favorite_count(self, user):
         return user.favorites.count()
 
-    @admin.display(description='Количество подписчиков')
+    @admin.display(description='Подписчиков')
     def follower_count(self, user):
         return user.followers.count()
 
-    @method_decorator(mark_safe_decorator)
     @admin.display(description='Аватар')
     def avatar_image(self, user):
         if user.avatar:
-            return f'<img src="{user.avatar.url}" width="50" height="50">'
+            return mark_safe(
+                f'<img src="{user.avatar.url}" width="50" height="50">'
+            )
         return 'Нет аватара'
 
     def get_queryset(self, request):
@@ -238,7 +213,7 @@ class IngredientAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'measurement_unit', 'recipe_count')
     search_fields = ('name', 'measurement_unit')
     list_display_links = ('name',)
-    list_filter = (RecipeCountFilter,)
+    list_filter = ('measurement_unit', RecipeCountFilter)
     ordering = ('name',)
     readonly_fields = ('id',)
 
@@ -287,37 +262,32 @@ class RecipeAdmin(admin.ModelAdmin):
         )
 
     @mark_safe
-    @admin.display(description='Добавлено в избранное')
+    @admin.display(description='В избранном')
     def favorites_count(self, recipe):
         count = recipe.favorites_count
-        if count > 0:
-            return f'<span style="color:green">{count}</span>'
         return count
 
-    @method_decorator(mark_safe_decorator)
     @admin.display(description='Изображение рецепта')
     def recipe_image(self, recipe):
         if recipe.image:
-            return f'<img src="{recipe.image.url}" width="50" height="50">'
-        return 'Нет изображения'
+            return mark_safe(
+                f'<img src="{recipe.image.url}" width="50" height="50">'
+            )
+        return '-'
 
-    @mark_safe
     @admin.display(description='Продукты')
     def ingredients_list(self, recipe):
-        ingredients = recipe.amount_ingredients.all()
-        return '<br>'.join(
+        return mark_safe('<br>'.join(
             f'{ingredient.ingredient.name} ({ingredient.amount} '
             f'{ingredient.ingredient.measurement_unit})'
-            for ingredient in ingredients
-        )
+            for ingredient in recipe.amount_ingredients.all()
+        ))
 
-    @mark_safe
     @admin.display(description='Теги')
     def tags_list(self, recipe):
-        tags = recipe.tags.all()
-        return ', '.join(tag.name for tag in tags)
+        return mark_safe('<br>'.join(tag.name for tag in recipe.tags.all()))
 
-    @admin.display(description='Время приготовления (мин.)')
+    @admin.display(description='Время (мин.)')
     def cooking_time_display(self, recipe):
         return f'{recipe.cooking_time} мин'
 

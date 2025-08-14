@@ -1,4 +1,3 @@
-[![Main Foodgram workflow](https://github.com/Konstantin-Kleinikov/foodgram/actions/workflows/main.yml/badge.svg)](https://github.com/Konstantin-Kleinikov/foodgram/actions/workflows/main.yml)
 #  Социальная сеть для обмена рецептами приготовления еды Foodgram
 
 Адрес сайта: https://yp-foodgram.zapto.org/
