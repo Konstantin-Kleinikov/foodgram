@@ -51,8 +51,8 @@ git clone git clone <https or SSH URL>
 pip install -r requirements.txt
 python manage.py migrate
 python manage.py createsuperuser
-python manage.py load_ingredients_json
-python manage.py load_tags_json
+python manage.py load_data --data_type=tags
+python manage.py load_data --data_type=ingredients
 ```
 
 ### 4. Запустите frontend-проект

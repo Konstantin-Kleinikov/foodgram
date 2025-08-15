@@ -151,8 +151,9 @@ DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
 DJOSER = {
     'LOGIN_FIELD': 'email',
-    'USER_IDENTIFICATION_FIELDS': ['email'],
+    'USERNAME_FIELD': 'email',
     'HIDE_USERS': False,
+    'USER_CREATE_PASSWORD_RETYPE': False,
     'PASSWORD_VALIDATORS': [
         {'NAME': 'django.contrib.auth.password_validation.UserAttributeSimilarityValidator'},
         {'NAME': 'django.contrib.auth.password_validation.MinimumLengthValidator', 'OPTIONS': {'min_length': 8}},
@@ -168,7 +169,6 @@ DJOSER = {
     'PERMISSIONS': {
         'user_list': ['rest_framework.permissions.AllowAny'],
         'user': ['rest_framework.permissions.AllowAny'],
-        'me': ['rest_framework.permissions.IsAuthenticated'],
     },
 }
 

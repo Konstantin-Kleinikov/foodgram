@@ -47,6 +47,9 @@ class FoodgramUser(AbstractUser):
         max_length=NAME_MAX_LENGTH,
     )
 
+    USERNAME_FIELD = 'email'
+    REQUIRED_FIELDS = ['username', 'first_name', 'last_name']
+
     class Meta:
         verbose_name = 'пользователь'
         verbose_name_plural = 'Пользователи'

@@ -10,228 +10,125 @@ from django.template.loader import render_to_string
 from django.urls import reverse
 from django.utils.timezone import now
 from django_filters.rest_framework import DjangoFilterBackend
-from djoser.views import UserViewSet as DjoserUserViewSet
-from dotenv import load_dotenv
-from rest_framework import filters, permissions, status, viewsets
+from djoser.views import UserViewSet as UserViewSet
+from rest_framework import filters, status, viewsets
 from rest_framework.decorators import action
-from rest_framework.exceptions import PermissionDenied
-from rest_framework.permissions import AllowAny
+from rest_framework.exceptions import ValidationError
+from rest_framework.permissions import (AllowAny, IsAuthenticated,
+                                        IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
 from api.filters import RecipeFilter
 from api.permissions import IsAdminAuthorOrReadOnly
-from api.serializers import (CustomPasswordSerializer,
-                             CustomUserCreateSerializer,
-                             FoodgramUserAvatarSerializer,
-                             FoodgramUserSerializer, IngredientSerializer,
+from api.serializers import (FoodgramUserSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer, RecipeSerializer,
                              RecipeShortSerializer, TagSerializer,
                              UserFollowSerializer)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
-load_dotenv()
-EXPORT_FORMAT = os.getenv('SHOPPING_CART_EXPORT_FORMAT', 'txt')
-
 logger = logging.getLogger(__name__)
 
-UserModel = get_user_model()
+User = get_user_model()
 
 
-class FoodgramUserViewSet(DjoserUserViewSet):
-    queryset = UserModel.objects.all()
-    permission_classes = [AllowAny]  # Для создания пользователя
+class FoodgramUserViewSet(UserViewSet):
+    queryset = User.objects.all()
+    serializer_class = FoodgramUserSerializer
+    permission_classes = [IsAuthenticatedOrReadOnly]
 
-    def get_permissions(self):
-        if self.action in ['list', 'retrieve']:
-            self.permission_classes = [permissions.IsAuthenticatedOrReadOnly]
-        elif self.action in [
-            'me',
-            'set_password',
-            'avatar',
-            'subscriptions',
-            'subscribe'
-        ]:
-            self.permission_classes = [permissions.IsAuthenticated]
-        return super().get_permissions()
+    @action(['get'],
+            detail=False,
+            permission_classes=[IsAuthenticated])
+    def me(self, request, *args, **kwargs):
+        return super().me(request, *args, **kwargs)
 
-    def get_serializer_class(self):
-        if self.action == 'create':
-            return CustomUserCreateSerializer
-        elif self.action == 'set_password':
-            return CustomPasswordSerializer
-        return FoodgramUserSerializer
-
-    def create(self, request, *args, **kwargs):
-        serializer = self.get_serializer(data=request.data)
-        serializer.is_valid(raise_exception=True)
-        user = self.perform_create(serializer)
-
-        # Формируем ответ для POST запроса
-        response_data = {
-            'email': user.email,
-            'id': user.id,
-            'username': user.username,
-            'first_name': user.first_name,
-            'last_name': user.last_name
-        }
-        return Response(response_data, status=status.HTTP_201_CREATED)
-
-    def perform_create(self, serializer):
-        return serializer.save()
-
-    def list(self, request, *args, **kwargs):
-        queryset = self.filter_queryset(self.get_queryset())
-        page = self.paginate_queryset(queryset)
-        if page is not None:
-            serializer = self.get_serializer(page, many=True)
-            return self.get_paginated_response(serializer.data)
-
-        serializer = self.get_serializer(queryset, many=True)
-        return Response(serializer.data)
-
-    def retrieve(self, request, *args, **kwargs):
-        instance = self.get_object()
-        serializer = self.get_serializer(instance)
-        return Response(serializer.data)
-
-    @action(["post"], detail=False)
-    def set_password(self, request):
-        serializer = self.get_serializer(
-            request.user,
-            data=request.data,
-            context={'request': request}
-        )
-
-        try:
-            if not serializer.is_valid():
-                return Response(
-                    serializer.errors,
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-
-            serializer.save()
-            return Response(status=status.HTTP_204_NO_CONTENT)
-
-        except Exception as ex:
-            # Собираем детальную информацию об ошибке
-            error_details = {
-                'detail': str(ex),
-                'errors': getattr(ex, 'detail', {})
-            }
-            return Response(
-                error_details,
-                status=status.HTTP_400_BAD_REQUEST
-            )
-
-    @action(["get"], detail=False, url_path="me")
-    def me(self, request):
-        if not request.user.is_authenticated:
-            raise PermissionDenied('Authentication credentials were '
-                                   'not provided')
-
-        serializer = self.get_serializer(request.user)
-        try:
-            return Response(serializer.data)
-        except Exception as e:
-            return Response(
-                {'error': str(e)},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
-
-    @action(detail=False, methods=['put', 'delete'], url_path='me/avatar')
+    @action(
+        detail=False,
+        methods=['put', 'delete'],
+        url_path='me/avatar',
+        permission_classes=[IsAuthenticated]
+    )
     def avatar(self, request):
-        """
-        Управление аватаром пользователя
-        """
         user = request.user
+
         if request.method == 'PUT':
-            serializer = FoodgramUserAvatarSerializer(user, data=request.data)
-            if serializer.is_valid():
-                if 'avatar' not in serializer.validated_data:
-                    return Response(
-                        {'detail': 'Файл аватара не был предоставлен'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+            avatar = request.data.get('avatar')
+            if not avatar:
+                raise ValidationError({'avatar': ['Это поле обязательно.']})
 
-                if not serializer.validated_data['avatar']:
-                    return Response(
-                        {'avatar': 'Файл аватара не может быть пустым'},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
-                serializer.save()
-                return Response(serializer.data)
-            return Response(serializer.errors, status=400)
-        elif request.method == 'DELETE':
-            user.avatar.delete()
-            return Response(status=204)
-        return Response(status=405)
-
-    @action(detail=False, methods=['get'], url_path='subscriptions')
-    def subscriptions(self, request):
-        """
-        Список подписок текущего пользователя
-        """
-        subscriptions = UserModel.objects.filter(
-            pk__in=Follow.objects
-            .filter(user=request.user)
-            .values_list('following__id', flat=True)
-        )
-        page = self.paginate_queryset(subscriptions)
-        if page is not None:
-            serializer = UserFollowSerializer(
-                page,
-                many=True,
+            user.avatar = FoodgramUserSerializer(
                 context={'request': request}
-            )
-            return self.get_paginated_response(serializer.data)
-        serializer = UserFollowSerializer(
-            subscriptions,
-            many=True,
-            context={'request': request}
-        )
-        return Response(serializer.data)
+            ).fields['avatar'].to_internal_value(avatar)
 
-    @action(detail=True, methods=['post', 'delete'], url_path='subscribe')
-    def subscribe(self, request, id=None):
-        """
-        Управление подпиской на пользователя
-        """
-        user = get_object_or_404(UserModel, id=id)
-        if user == request.user:
+            user.save()
+
             return Response(
-                {'detail': 'Нельзя подписаться на себя'},
-                status=400
-            )
+                {'avatar': user.avatar.url if user.avatar else None},
+                status=status.HTTP_200_OK)
+        # для request.method == 'DELETE'
+        if (
+                user.avatar
+                and user.avatar.path
+                and os.path.isfile(user.avatar.path)
+        ):
+            try:
+                os.remove(user.avatar.path)
+            except Exception:
+                pass
 
-        if request.method == 'POST':
-            if Follow.objects.filter(
-                    user=request.user,
-                    following=user
-            ).exists():
-                return Response({'detail': 'Уже подписаны'}, status=400)
-            Follow.objects.create(user=request.user, following=user)
-            serializer = UserFollowSerializer(
-                user,
-                context={'request': request}
+        user.avatar = None
+        user.save()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    @action(detail=True,
+            methods=['post', 'delete'],
+            permission_classes=[IsAuthenticated]
             )
-            return Response(serializer.data, status=201)
+    def subscribe(self, request, **kwargs):
+        pk = kwargs['id']
+        user = request.user
 
         if request.method == 'DELETE':
-            try:
-                follow = Follow.objects.get(
-                    user=request.user,
-                    following=user
-                )
-                follow.delete()
-                return Response(status=status.HTTP_204_NO_CONTENT)
-            except Follow.DoesNotExist:
-                return Response(
-                    {'detail': 'Подписка не существует'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
+            get_object_or_404(Follow,
+                              follower=request.user,
+                              author_id=pk
+                              ).delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
 
-        return None
+        # для request.method == 'POST':
+        author = get_object_or_404(User, pk=pk)
+
+        if user.id == author.id:
+            raise ValidationError('Нельзя подписаться на самого себя')
+
+        _, created = Follow.objects.get_or_create(
+            follower=user, author=author)
+        if not created:
+            raise ValidationError(
+                f'Вы уже подписаны на пользователя {author.username}')
+
+        serializer = UserFollowSerializer(
+            author,
+            context={'request': request}
+        )
+        return Response(serializer.data, status=status.HTTP_201_CREATED)
+
+    @action(detail=False, methods=['get'], permission_classes=[AllowAny])
+    def subscriptions(self, request):
+        authors = User.objects.filter(
+            pk__in=Follow.objects
+            .filter(follower=request.user)
+            .values_list('author__id', flat=True)
+        )
+        paginator = self.paginate_queryset(authors)
+        return paginator.get_paginated_response(
+            UserFollowSerializer(
+                paginator.paginate_queryset(authors, request),
+                many=True,
+                context={'request': request}
+            ).data
+        )
 
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):

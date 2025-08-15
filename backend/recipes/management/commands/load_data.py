@@ -33,7 +33,7 @@ class Command(BaseCommand):
         # Определяем путь к файлу
         file_path = Path(
             settings.BASE_DIR
-        ).parent / 'data' / f"{data_type}.json"
+        ).parent / 'data' / f'{data_type}.json'
 
         try:
             # Определяем модель на основе типа данных

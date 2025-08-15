@@ -1,40 +1,31 @@
 import logging
-import re
 
 from django.contrib.auth import get_user_model
 from django.core.validators import MinValueValidator
-from djoser.serializers import (PasswordSerializer, UserCreateSerializer,
-                                UserSerializer)
+from djoser.serializers import UserSerializer
+from djoser.serializers import UserSerializer as DjoserUserSerializer
 from drf_extra_fields.fields import Base64ImageField
 from rest_framework import serializers
-from rest_framework.exceptions import ValidationError
 from rest_framework.validators import UniqueValidator
 
 from recipes.constants import (MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT,
-                               MIN_INGREDIENT_ID, MIN_RECIPES_QTY)
+                               MIN_INGREDIENT_ID)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
 logger = logging.getLogger(__name__)
 
-UserModel = get_user_model()
+User = get_user_model()
 
 
 class FoodgramUserSerializer(UserSerializer):
     is_subscribed = serializers.SerializerMethodField()
-    avatar = serializers.ImageField(required=False, allow_null=True)
+    avatar = Base64ImageField(required=False, allow_null=True)
 
-    class Meta(UserSerializer.Meta):
-        model = UserModel
-        fields = (
-            'email',
-            'id',
-            'username',
-            'first_name',
-            'last_name',
-            'is_subscribed',
-            'avatar'
-        )
+    class Meta:
+        model = User
+        fields = (*DjoserUserSerializer.Meta.fields, 'avatar', 'is_subscribed')
+        read_only_fields = fields
 
     def get_is_subscribed(self, user_instance):
         request = self.context.get('request')
@@ -44,68 +35,6 @@ class FoodgramUserSerializer(UserSerializer):
                 following=user_instance
             ).exists()
         return False
-
-
-class CustomUserCreateSerializer(UserCreateSerializer):
-    class Meta(UserCreateSerializer.Meta):
-        model = UserModel
-        fields = ('email', 'username', 'first_name', 'last_name', 'password')
-
-    def validate_username(self, value):
-        # Обновленное регулярное выражение, разрешающее дефисы
-        if not re.match(r'^[a-zA-Z0-9._-]+$', value):
-            raise serializers.ValidationError(
-                'Имя пользователя может содержать только буквы, цифры, '
-                'точки, дефисы и нижние подчеркивания'
-            )
-        return value
-
-
-class CustomPasswordSerializer(PasswordSerializer):
-    def __init__(self, *args, **kwargs):
-        super().__init__(*args, **kwargs)
-        # Добавляем явное указание полей
-        self.fields['current_password'] = serializers.CharField(
-            write_only=True,
-            required=True
-        )
-        self.fields['new_password'] = serializers.CharField(
-            write_only=True,
-            required=True
-        )
-
-    def validate(self, attrs):
-        # Получаем текущего пользователя из контекста
-        user = self.context['request'].user
-
-        # Получаем текущий пароль из данных запроса
-        current_password = attrs.get('current_password')
-
-        # Проверяем пароль
-        if not user.check_password(current_password):
-            raise ValidationError({
-                'current_password': 'Неверный текущий пароль'
-            })
-
-        return super().validate(attrs)
-
-    def update(self, instance, validated_data):
-        # Метод update обязателен для работы сериализатора
-        instance.set_password(validated_data['new_password'])
-        instance.save()
-        return instance
-
-
-class FoodgramUserAvatarSerializer(serializers.ModelSerializer):
-    avatar = Base64ImageField(
-        required=False,
-        allow_null=True,
-        help_text='Формат изображения: PNG, JPG, JPEG'
-    )
-
-    class Meta:
-        model = UserModel
-        fields = ('avatar',)
 
 
 class TagSerializer(serializers.ModelSerializer):
@@ -461,9 +390,26 @@ class RecipeShortSerializer(serializers.ModelSerializer):
             'image',
             'cooking_time'
         )
+        read_only_fields = fields
 
 
-class UserFollowSerializer(FoodgramUserSerializer):
+class UserSerializer(DjoserUserSerializer):
+    is_subscribed = serializers.SerializerMethodField()
+
+    def get_is_subscribed(self, followed_user):
+        user = self.context['request'].user
+        return user.is_authenticated and Follow.objects.filter(
+            follower=user, author=followed_user
+        ).exists()
+
+    class Meta:
+        model = User
+        fields = (*DjoserUserSerializer.Meta.fields,
+                  'avatar', 'is_subscribed')
+        read_only_fields = fields
+
+
+class UserFollowSerializer(UserSerializer):
     """Сериализатор получения информации о подписке текущего пользователя."""
 
     recipes = serializers.SerializerMethodField()
@@ -472,27 +418,18 @@ class UserFollowSerializer(FoodgramUserSerializer):
         read_only=True
     )
 
-    class Meta(FoodgramUserSerializer.Meta):
-        # Получаем базовые поля из родительского Meta
-        fields = FoodgramUserSerializer.Meta.fields + (
-            'recipes',
-            'recipes_count'
-        )
+    class Meta:
+        model = User
+        fields = (*UserSerializer.Meta.fields,
+                  'recipes', 'recipes_count')
         read_only_fields = fields
 
     def get_recipes(self, user):
-        request = self.context.get('request')
-        # Используем "бесконечность" для максимального значения
-        recipes_limit = int(request.GET.get('recipes_limit', 10 ** 10))
-        limit = int(request.GET.get('limit', 10 ** 10))
-
-        # Определяем финальное значение limit
-        final_limit = max(min(recipes_limit, limit), MIN_RECIPES_QTY)
-
-        # Получаем рецепты с учетом лимита
-        recipes = user.recipes.all()[:final_limit]
         return RecipeShortSerializer(
-            recipes,
+            user.recipes.all()[
+                :int(self.context['request'].
+                     GET.get('recipes_limit', 10 ** 10))
+            ],
             many=True,
-            context={'request': request}
+            context=self.context
         ).data
