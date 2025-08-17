@@ -17,7 +17,6 @@ INGREDIENT_MAX_LENGTH = 128
 INGREDIENT_MIN_QTY = 1
 UNIT_OF_MEASURE_MAX_LENGTH = 64
 MIN_INGREDIENT_AMOUNT = 1
-MIN_INGREDIENT_ID = 1
 
 # Константы для фильтрации
 FILTER_LESS_THAN = '<10'  # Значение фильтра "меньше ..."

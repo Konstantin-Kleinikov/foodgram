@@ -160,7 +160,6 @@ DJOSER = {
         {'NAME': 'django.contrib.auth.password_validation.CommonPasswordValidator'},
         {'NAME': 'django.contrib.auth.password_validation.NumericPasswordValidator'}
     ],
-    'PASSWORD_MIN_LENGTH': 8,
     'SERIALIZERS': {
         'user_create': 'djoser.serializers.UserCreateSerializer',
         'user': 'api.serializers.FoodgramUserSerializer',
@@ -170,13 +169,6 @@ DJOSER = {
         'user_list': ['rest_framework.permissions.AllowAny'],
         'user': ['rest_framework.permissions.AllowAny'],
     },
-}
-
-CACHES = {
-    'default': {
-        'BACKEND': 'django.core.cache.backends.locmem.LocMemCache',
-        'LOCATION': 'unique-snowflake'
-    }
 }
 
 LOG_DIR = os.path.join(BASE_DIR, 'logs')
@@ -230,6 +222,5 @@ CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:3000',
     'https://yp-foodgram.zapto.org',
-    'http://web:8000',
-    'https://84.201.137.0/'
+    'https://84.201.137.0'
 ]
