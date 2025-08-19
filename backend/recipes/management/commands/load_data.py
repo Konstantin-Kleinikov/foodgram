@@ -18,6 +18,16 @@ from django.core.management.base import BaseCommand
 class Command(BaseCommand):
     help = 'Импорт данных из JSON-файла'
 
+    # Словарь для сопоставления типов данных с моделями
+    MODELS_MAP = {
+        'tags': apps.get_model(
+            'recipes', 'Tag'
+        ),
+        'ingredients': apps.get_model(
+            'recipes', 'Ingredient'
+        )
+    }
+
     def add_arguments(self, parser):
         parser.add_argument(
             '--data_type',
@@ -36,22 +46,14 @@ class Command(BaseCommand):
         ).parent / 'data' / f'{data_type}.json'
 
         try:
-            # Определяем модель на основе типа данных
-            if data_type == 'tags':
-                model = apps.get_model(
-                    'recipes', 'Tag'
-                )
-            elif data_type == 'ingredients':
-                model = apps.get_model(
-                    'recipes', 'Ingredient'
-                )
-            else:
+            # Получаем модель из словаря
+            model = self.MODELS_MAP.get(data_type)
+            if not model:
                 raise ValueError('Неверный тип данных')
 
             with open(file_path, encoding='utf-8') as file:
-                data = json.load(file)
                 created = model.objects.bulk_create(
-                    (model(**item) for item in data),
+                    (model(**item) for item in json.load(file)),
                     ignore_conflicts=True
                 )
                 self.stdout.write(
@@ -61,19 +63,7 @@ class Command(BaseCommand):
                     )
                 )
 
-        except FileNotFoundError:
-            self.stderr.write(
-                self.style.ERROR(f'Файл {file_path} не найден')
-            )
-        except json.JSONDecodeError:
-            self.stderr.write(
-                self.style.ERROR('Ошибка при чтении JSON файла')
-            )
-        except LookupError:
-            self.stderr.write(
-                self.style.ERROR(f'Модель для {data_type} не найдена')
-            )
         except Exception as e:
             self.stderr.write(
-                self.style.ERROR(f'Произошла ошибка: {e}')
+                self.style.ERROR(f'Произошла ошибка: {e}, в файле {file_path}')
             )

@@ -18,10 +18,10 @@ from rest_framework.response import Response
 
 from api.filters import RecipeFilter
 from api.permissions import IsAuthorOrReadOnly
-from api.serializers import (FoodgramUserSerializer, IngredientSerializer,
+from api.serializers import (FoodgramUserSerializer, IngredientReadSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeReadSerializer, RecipeShortSerializer,
-                             TagSerializer, UserFollowSerializer)
+                             TagReadSerializer, UserFollowSerializer)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
 
@@ -83,19 +83,16 @@ class FoodgramUserViewSet(UserViewSet):
         user = request.user
 
         if request.method == 'DELETE':
-            exists = Follow.objects.filter(user=user, following_id=pk).exists()
-            if not exists:
-                return Response(
-                    {'detail': 'Subscription does not exist.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            Follow.objects.filter(user=user, following_id=pk).delete()
+            get_object_or_404(Follow,
+                              follower=request.user,
+                              author_id=pk
+                              ).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 
         # для метода 'POST':
         author = get_object_or_404(User, pk=pk)
 
-        if user.id == author.id:
+        if user == author:
             raise ValidationError('Нельзя подписаться на самого себя')
 
         _, created = Follow.objects.get_or_create(
@@ -104,11 +101,13 @@ class FoodgramUserViewSet(UserViewSet):
             raise ValidationError(
                 f'Вы уже подписаны на пользователя {author.username}')
 
-        serializer = UserFollowSerializer(
-            author,
-            context={'request': request}
+        return Response(
+            UserFollowSerializer(
+                author,
+                context={'request': request}
+            ).data,
+            status=status.HTTP_201_CREATED
         )
-        return Response(serializer.data, status=status.HTTP_201_CREATED)
 
     @action(
         detail=False,
@@ -130,7 +129,7 @@ class FoodgramUserViewSet(UserViewSet):
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
-    serializer_class = TagSerializer
+    serializer_class = TagReadSerializer
     lookup_field = 'id'
     permission_classes = [AllowAny]
     pagination_class = None
@@ -138,7 +137,7 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
-    serializer_class = IngredientSerializer
+    serializer_class = IngredientReadSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
     search_fields = ['^name']
     ordering_fields = ['name']
@@ -187,23 +186,11 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
 
     def modify_favorite_or_cart(self, model, recipe_id, request):
-        if request.method not in {'POST', 'DELETE'}:
-            return Response(
-                {'error': f'Метод {request.method} не поддерживается'},
-                status=status.HTTP_405_METHOD_NOT_ALLOWED
-            )
-
         if request.method == 'DELETE':
-            exists = model.objects.filter(
-                user=request.user, recipe_id=recipe_id
-            ).exists()
-            if not exists:
-                return Response(
-                    {'detail': 'Item does not exist.'},
-                    status=status.HTTP_400_BAD_REQUEST
-                )
-            model.objects.filter(
-                user=request.user, recipe_id=recipe_id
+            get_object_or_404(
+                model,
+                user=request.user,
+                recipe_id=recipe_id
             ).delete()
             return Response(status=status.HTTP_204_NO_CONTENT)
 

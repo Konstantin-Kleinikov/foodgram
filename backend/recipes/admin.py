@@ -1,103 +1,11 @@
 from django.contrib import admin
-from django.contrib.admin import SimpleListFilter
 from django.db.models import Count
 from django.utils.safestring import mark_safe
 
-from recipes.constants import (FILTER_BETWEEN, FILTER_BETWEEN_NAME,
-                               FILTER_HIGH_VALUE, FILTER_LESS_THAN,
-                               FILTER_LESS_THAN_NAME, FILTER_LOW_VALUE,
-                               FILTER_MIDDLE_VALUE, FILTER_MORE_THAN,
-                               FILTER_MORE_THAN_NAME)
-from recipes.filters import (HasFavoritesFilter, HasFollowersFilter,
-                             HasRecipesFilter)
+from recipes.filters import (CookingTimeFilter, HasFavoritesFilter,
+                             HasFollowersFilter, HasRecipesFilter)
 from recipes.models import (Favorite, Follow, FoodgramUser, Ingredient,
                             IngredientRecipe, Recipe, ShoppingCart, Tag)
-
-
-class RecipeCountFilter(SimpleListFilter):
-    title = 'Количество рецептов'
-    parameter_name = 'recipe_count'
-
-    LOOKUP_CHOICES = [
-        (FILTER_LESS_THAN, FILTER_LESS_THAN_NAME),
-        (FILTER_BETWEEN, FILTER_BETWEEN_NAME),
-        (FILTER_MORE_THAN, FILTER_MORE_THAN_NAME),
-    ]
-
-    def lookups(self, request, model_admin):
-        return self.LOOKUP_CHOICES
-
-    def queryset(self, request, queryset):
-        if self.value() == FILTER_LESS_THAN:
-            return queryset.filter(
-                recipe_count__lt=FILTER_MIDDLE_VALUE,
-                recipe_count__gte=FILTER_LOW_VALUE
-            )
-        if self.value() == FILTER_BETWEEN:
-            return queryset.filter(
-                recipe_count__gte=FILTER_MIDDLE_VALUE,
-                recipe_count__lte=FILTER_HIGH_VALUE
-            )
-        if self.value() == FILTER_MORE_THAN:
-            return queryset.filter(
-                recipe_count__gt=FILTER_HIGH_VALUE
-            )
-        return queryset
-
-
-class CookingTimeFilter(SimpleListFilter):
-    title = 'Время приготовления'
-    parameter_name = 'cooking_time'
-
-    def _range_filter(self, bounds, recipes=None):
-        return (
-            recipes
-            or self.recipes
-            or Recipe.objects.all()
-        ).filter(cooking_time__range=bounds)
-
-    def lookups(self, request, model_admin):
-        self.recipes = model_admin.get_queryset(request)
-        times = list(self.recipes.values_list('cooking_time', flat=True))
-        if len(set(times)) < 3:
-            return []
-
-        times.sort()
-        short_time_max = times[len(times) // 3]
-        medium_time_max = times[2 * len(times) // 3]
-
-        self.thresholds = {
-            'fast': {
-                'range': (0, short_time_max - 1),
-                'label': f'меньше {short_time_max} мин',
-            },
-            'medium': {
-                'range': (short_time_max, medium_time_max - 1),
-                'label': f'не дольше {medium_time_max} мин',
-            },
-            'long': {
-                'range': (medium_time_max, times[-1] + 1),
-                'label': 'долгие',
-            },
-        }
-
-        return [
-            (
-                key,
-                f"{value['label']} "
-                f"({self._range_filter(value['range']).count()})"
-            )
-            for key, value in self.thresholds.items()
-        ]
-
-    def queryset(self, request, queryset):
-        selected = self.value()
-        if selected in self.thresholds:
-            return self._range_filter(
-                bounds=self.thresholds[selected]['range'],
-                recipes=queryset
-            )
-        return queryset
 
 
 @admin.register(FoodgramUser)
@@ -215,7 +123,7 @@ class IngredientAdmin(admin.ModelAdmin):
     list_display = ('id', 'name', 'measurement_unit', 'recipe_count')
     search_fields = ('name', 'measurement_unit')
     list_display_links = ('name',)
-    list_filter = ('measurement_unit', RecipeCountFilter)
+    list_filter = ('measurement_unit', HasRecipesFilter)
     ordering = ('name',)
     readonly_fields = ('id',)
 

@@ -4,7 +4,7 @@ from django.core.validators import MinValueValidator, RegexValidator
 from django.db import models
 
 from recipes.constants import (EMAIL_MAX_LENGTH, INGREDIENT_MAX_LENGTH,
-                               INGREDIENT_MIN_QTY, MIN_COOKING_TIME,
+                               MIN_COOKING_TIME, MIN_INGREDIENT_AMOUNT,
                                NAME_MAX_LENGTH, RECIPE_NAME_MAX_LENGTH,
                                SLUG_MAX_LENGTH, TAG_MAX_LENGTH,
                                TEXT_FIELDS_DISPLAY_LENGTH,
@@ -181,8 +181,8 @@ class IngredientRecipe(models.Model):
     amount = models.PositiveSmallIntegerField(
         'Количество',
         validators=(MinValueValidator(
-            INGREDIENT_MIN_QTY,
-            message=f'Кол-во не может быть меньше {INGREDIENT_MIN_QTY}.'),
+            MIN_INGREDIENT_AMOUNT,
+            message=f'Кол-во не может быть меньше {MIN_INGREDIENT_AMOUNT}.'),
         )
     )
 
