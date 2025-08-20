@@ -17,30 +17,31 @@ class BaseHasFilter(SimpleListFilter):
 
     def queryset(self, request, queryset):
         if self.value() == 'yes':
-            return queryset.filter(
-                **{f'{self.field_name}__isnull': False}
-            ).distinct()
-        elif self.value() == 'no':
-            return queryset.filter(**{f'{self.field_name}__isnull': True})
+            return (queryset.
+                    filter(**{f'{self.related_name}__isnull': False})
+                    .distinct()
+                    )
+        if self.value() == 'no':
+            return queryset.filter(**{f'{self.related_name}__isnull': True})
         return queryset
 
 
 class HasRecipesFilter(BaseHasFilter):
     title = 'Есть рецепты'
     parameter_name = 'has_recipes'
-    field_name = 'recipes'
+    related_name = 'recipes'
 
 
-class HasFavoritesFilter(BaseHasFilter):
-    title = 'Есть избранные'
-    parameter_name = 'has_favorites'
-    field_name = 'favorites'
+class HasFollowingFilter(BaseHasFilter):
+    title = 'Есть подписчики'
+    parameter_name = 'has_following'
+    related_name = 'authors'
 
 
 class HasFollowersFilter(BaseHasFilter):
-    title = 'Есть подписчики'
+    title = 'Есть подписки'
     parameter_name = 'has_followers'
-    field_name = 'followers'
+    related_name = 'followers'
 
 
 class CookingTimeFilter(SimpleListFilter):

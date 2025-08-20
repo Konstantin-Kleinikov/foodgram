@@ -1,11 +1,6 @@
-from django_filters import BaseInFilter, CharFilter
 from django_filters import rest_framework as filters
 
-from recipes.models import Recipe, Tag
-
-
-class CharListFilter(BaseInFilter, CharFilter):
-    pass
+from recipes.models import Ingredient, Recipe, Tag
 
 
 class RecipeFilter(filters.FilterSet):
@@ -41,3 +36,14 @@ class RecipeFilter(filters.FilterSet):
         recipes = recipes.select_related('author')
         recipes = recipes.prefetch_related('tags')
         return super().filter_queryset(recipes)
+
+
+class IngredientSearchFilter(filters.FilterSet):
+    name = filters.CharFilter(method='filter_name_startswith')
+
+    class Meta:
+        model = Ingredient
+        fields = ['name']
+
+    def filter_name_startswith(self, queryset, name, value):
+        return queryset.filter(name__istartswith=value)

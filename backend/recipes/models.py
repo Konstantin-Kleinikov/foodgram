@@ -25,7 +25,7 @@ class FoodgramUser(AbstractUser):
         validators=[username_validator],
     )
     email = models.EmailField(
-        'Адрес электронной почты',
+        'Почта',
         unique=True,
         blank=False,
         max_length=EMAIL_MAX_LENGTH,
@@ -121,7 +121,7 @@ class Recipe(models.Model):
         max_length=RECIPE_NAME_MAX_LENGTH,
     )
     image = models.ImageField(
-        'Изображение рецепта',
+        'Изображение',
         upload_to='recipes/images',
         null=True,
         blank=True,
@@ -132,7 +132,7 @@ class Recipe(models.Model):
     author = models.ForeignKey(
         UserModel,
         on_delete=models.CASCADE,
-        verbose_name='Автор рецепта',
+        verbose_name='Автор',
     )
     ingredients = models.ManyToManyField(
         Ingredient,
@@ -144,7 +144,7 @@ class Recipe(models.Model):
         verbose_name='Теги',
     )
     cooking_time = models.PositiveIntegerField(
-        'Время приготовления (мин.)',
+        'Время (мин.)',
         validators=(MinValueValidator(
             MIN_COOKING_TIME,
             message='Время приготовления не может быть меньше '

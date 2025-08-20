@@ -1,22 +1,77 @@
+from django import forms
 from django.contrib import admin
+from django.contrib.auth.admin import UserAdmin as BaseUserAdmin
+from django.contrib.auth.password_validation import validate_password
 from django.db.models import Count
 from django.utils.safestring import mark_safe
 
-from recipes.filters import (CookingTimeFilter, HasFavoritesFilter,
-                             HasFollowersFilter, HasRecipesFilter)
+from recipes.filters import (CookingTimeFilter, HasFollowersFilter,
+                             HasFollowingFilter, HasRecipesFilter)
 from recipes.models import (Favorite, Follow, FoodgramUser, Ingredient,
                             IngredientRecipe, Recipe, ShoppingCart, Tag)
 
 
+class FoodgramUserChangeForm(forms.ModelForm):
+    new_password1 = forms.CharField(
+        label="Новый пароль",
+        widget=forms.PasswordInput,
+        required=False,
+        help_text="Оставьте пустым, если не хотите менять пароль.",
+    )
+    new_password2 = forms.CharField(
+        label="Подтверждение пароля",
+        widget=forms.PasswordInput,
+        required=False,
+    )
+
+    class Meta:
+        model = FoodgramUser
+        fields = (
+            "username",
+            "email",
+            "first_name",
+            "last_name",
+            "avatar",
+            "is_active",
+            "is_staff",
+            "is_superuser",
+            "groups",
+            "user_permissions",
+        )
+
+    def clean(self):
+        cleaned = super().clean()
+        p1 = cleaned.get("new_password1")
+        p2 = cleaned.get("new_password2")
+        if p1 or p2:
+            if not p1 or not p2:
+                raise forms.ValidationError("Введите оба поля нового пароля.")
+            if p1 != p2:
+                raise forms.ValidationError("Пароли не совпадают.")
+            validate_password(p1, self.instance)
+        return cleaned
+
+    def save(self, commit=True):
+        user = super().save(commit=False)
+        p1 = self.cleaned_data.get("new_password1")
+        if p1:
+            user.set_password(p1)
+        if commit:
+            user.save()
+            self.save_m2m()
+        return user
+
+
 @admin.register(FoodgramUser)
-class FoodgramUserAdmin(admin.ModelAdmin):
+class FoodgramUserAdmin(BaseUserAdmin):
+    form = FoodgramUserChangeForm
+
     list_display = [
         'id',
         'username',
         'full_name',
         'email',
         'avatar_image',
-        'last_login',
         'is_active',
         'recipe_count',
         'favorite_count',
@@ -28,13 +83,13 @@ class FoodgramUserAdmin(admin.ModelAdmin):
         'is_staff',
         'is_active',
         HasRecipesFilter,
-        HasFavoritesFilter,
-        HasFollowersFilter
+        HasFollowersFilter,
+        HasFollowingFilter
     ]
     search_fields = ['username', 'email']
     search_help_text = 'Поиск по username и email'
     date_hierarchy = 'last_login'
-    readonly_fields = ['last_login', 'date_joined']
+    readonly_fields = ['last_login', 'date_joined', 'avatar_image']
     fieldsets = [
         (
             'Основные сведения о пользователе',
@@ -47,12 +102,14 @@ class FoodgramUserAdmin(admin.ModelAdmin):
                 ],
             },
         ),
+        ("Смена пароля", {"fields": ("new_password1", "new_password2")}),
         (
             'Дополнительная информация',
             {
                 'description': 'Дополнительные сведения о пользователе.',
                 'fields': [
-                    ('last_login', 'date_joined'), 'avatar', 'password'
+                    ('last_login', 'date_joined'),
+                    'avatar', 'avatar_image'
                 ],
             },
         ),
@@ -64,6 +121,24 @@ class FoodgramUserAdmin(admin.ModelAdmin):
         ),
     ]
 
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": (
+                    "username",
+                    "email",
+                    "first_name",
+                    "last_name",
+                    "password1",
+                    "password2",
+                    "avatar",
+                ),
+            },
+        ),
+    )
+
     @admin.display(description='Имя фамилия')
     def full_name(self, user):
         """Получение полного имени"""
@@ -73,11 +148,11 @@ class FoodgramUserAdmin(admin.ModelAdmin):
     def recipe_count(self, user):
         return user.recipes.count()
 
-    @admin.display(description='Подписок')
-    def favorite_count(self, user):
-        return user.favorites.count()
-
     @admin.display(description='Подписчиков')
+    def favorite_count(self, user):
+        return user.authors.count()
+
+    @admin.display(description='Подписок')
     def follower_count(self, user):
         return user.followers.count()
 
@@ -162,8 +237,24 @@ class RecipeAdmin(admin.ModelAdmin):
     list_filter = ('tags', 'author', CookingTimeFilter,)
     date_hierarchy = 'pub_date'
     ordering = ('name',)
-    readonly_fields = ('id',)
+    readonly_fields = ('id', 'recipe_image')
     inlines = [IngredientRecipeInline]
+
+    fieldsets = (
+        (None, {
+            'fields': (
+                'name',
+                'author',
+                'text',
+                'cooking_time',
+                'image',
+                'recipe_image',
+            )
+        }),
+        ('Теги', {
+            'fields': ('tags',)
+        }),
+    )
 
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
@@ -177,7 +268,7 @@ class RecipeAdmin(admin.ModelAdmin):
         count = recipe.favorites_count
         return count
 
-    @admin.display(description='Изображение рецепта')
+    @admin.display(description='Изображение')
     def recipe_image(self, recipe):
         if recipe.image:
             return mark_safe(

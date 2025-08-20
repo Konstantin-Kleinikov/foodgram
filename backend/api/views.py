@@ -1,5 +1,3 @@
-import logging
-
 from django.contrib.auth import get_user_model
 from django.db.models import Prefetch, Sum
 from django.http import FileResponse
@@ -16,16 +14,14 @@ from rest_framework.permissions import (AllowAny, IsAuthenticated,
                                         IsAuthenticatedOrReadOnly)
 from rest_framework.response import Response
 
-from api.filters import RecipeFilter
+from api.filters import IngredientSearchFilter, RecipeFilter
 from api.permissions import IsAuthorOrReadOnly
-from api.serializers import (FoodgramUserSerializer, IngredientReadSerializer,
+from api.serializers import (FoodgramUserSerializer, IngredientSerializer,
                              RecipeCreateUpdateSerializer,
                              RecipeReadSerializer, RecipeShortSerializer,
-                             TagReadSerializer, UserFollowSerializer)
+                             TagSerializer, UserFollowSerializer)
 from recipes.models import (Favorite, Follow, Ingredient, IngredientRecipe,
                             Recipe, ShoppingCart, Tag)
-
-logger = logging.getLogger(__name__)
 
 User = get_user_model()
 
@@ -129,7 +125,7 @@ class FoodgramUserViewSet(UserViewSet):
 
 class TagViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Tag.objects.all()
-    serializer_class = TagReadSerializer
+    serializer_class = TagSerializer
     lookup_field = 'id'
     permission_classes = [AllowAny]
     pagination_class = None
@@ -137,8 +133,9 @@ class TagViewSet(viewsets.ReadOnlyModelViewSet):
 
 class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = Ingredient.objects.all()
-    serializer_class = IngredientReadSerializer
+    serializer_class = IngredientSerializer
     filter_backends = [DjangoFilterBackend, filters.SearchFilter]
+    filterset_class = IngredientSearchFilter
     search_fields = ['^name']
     ordering_fields = ['name']
     filterset_fields = ['name']

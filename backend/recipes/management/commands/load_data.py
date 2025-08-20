@@ -46,14 +46,10 @@ class Command(BaseCommand):
         ).parent / 'data' / f'{data_type}.json'
 
         try:
-            # Получаем модель из словаря
-            model = self.MODELS_MAP.get(data_type)
-            if not model:
-                raise ValueError('Неверный тип данных')
-
             with open(file_path, encoding='utf-8') as file:
-                created = model.objects.bulk_create(
-                    (model(**item) for item in json.load(file)),
+                created = self.MODELS_MAP.get(data_type).objects.bulk_create(
+                    (self.MODELS_MAP.get(data_type)(**item)
+                     for item in json.load(file)),
                     ignore_conflicts=True
                 )
                 self.stdout.write(

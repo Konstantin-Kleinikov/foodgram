@@ -36,13 +36,13 @@ class FoodgramUserSerializer(UserSerializer):
         )
 
 
-class TagReadSerializer(serializers.ModelSerializer):
+class TagSerializer(serializers.ModelSerializer):
     class Meta:
         model = Tag
         fields = ('id', 'name', 'slug')
 
 
-class IngredientReadSerializer(serializers.ModelSerializer):
+class IngredientSerializer(serializers.ModelSerializer):
     class Meta:
         model = Ingredient
         fields = ('id', 'name', 'measurement_unit')
@@ -76,7 +76,7 @@ class IngredientRecipeWriteSerializer(serializers.ModelSerializer):
 
 
 class RecipeReadSerializer(serializers.ModelSerializer):
-    tags = TagReadSerializer(many=True,)
+    tags = TagSerializer(many=True,)
     author = FoodgramUserSerializer()
     ingredients = IngredientRecipeReadSerializer(
         many=True,
@@ -105,7 +105,6 @@ class RecipeReadSerializer(serializers.ModelSerializer):
         request = self.context.get('request')
         return (
             request
-            and request.user.is_authenticated
             and model.objects.filter(user=request.user, recipe=recipe).exists()
         )
 
