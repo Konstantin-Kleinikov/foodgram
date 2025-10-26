@@ -14,28 +14,27 @@ services:
       - pg_data:/var/lib/postgresql/data
 
   backend:
-    image: kkleinikov/foodgram-backend
+    image: kkleinikov/foodgram_backend
     env_file: .env
     volumes:
       - static:/backend_static
       - media:/app/media/
-      - data:/data/
-      - /home/yc-user/foodgram/data:/data/
+      - ./data:/data/
     depends_on:
       - db
 
   frontend:
     env_file: .env
-    image: kkleinikov/foodgram-frontend
+    image: kkleinikov/foodgram_frontend
     command: cp -r /app/build/. /static/
     volumes:
       - static:/static
 
   gateway:
-    image: kkleinikov/foodgram-gateway
+    image: kkleinikov/foodgram_gateway
     env_file: .env
     ports:
-      - 8000:80
+      - "8000:80"
     volumes:
       - static:/static
       - media:/app/media/

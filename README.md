@@ -1,6 +1,6 @@
 #  Социальная сеть для обмена рецептами приготовления еды Foodgram
 
-Адрес сайта: https://yp-foodgram.zapto.org/
+Адрес сайта: https://yp-foodgram.serveblog.net/
 
 ## Описание проекта
 
@@ -119,14 +119,14 @@ touch .env
 
 ## Доступы и документация
 ### Доступ к сайту
-https://yp-foodgram.zapto.org/
+https://yp-foodgram.serveblog.net/
 
 ### Документация по API-командам
 Документация и примеры API-запросов находятся в файле:
 [Open API спецификация](http://localhost:63342/foodgram/docs/redoc.html)
 
 ### Доступ к админке
-https://yp-foodgram.zapto.org/admin/
+https://yp-foodgram.serveblog.net/admin/
 
 
 ## Автор проекта

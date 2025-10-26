@@ -221,6 +221,6 @@ CORS_ALLOW_CREDENTIALS = True
 CSRF_TRUSTED_ORIGINS = [
     'http://localhost:8000',
     'http://localhost:3000',
-    'https://yp-foodgram.zapto.org',
-    'https://84.201.137.0'
+    'https://yp-foodgram.serveblog.net',
+    'https://192.144.14.224'
 ]

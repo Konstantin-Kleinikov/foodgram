@@ -1,5 +1,5 @@
 server {
-    server_name  84.201.137.0 yp-foodgram.zapto.org;
+    server_name  192.144.14.224 yp-foodgram.serveblog.net;
 
     location / {
         proxy_set_header Host $http_host;
@@ -8,8 +8,8 @@ server {
 
 
     listen 443 ssl; # managed by Certbot
-    ssl_certificate /etc/letsencrypt/live/yp-foodgram.zapto.org/fullchain.pem; # managed by Certbot
-    ssl_certificate_key /etc/letsencrypt/live/yp-foodgram.zapto.org/privkey.pem; # managed by Certbot
+    ssl_certificate /etc/letsencrypt/live/yp-foodgram.serveblog.net/fullchain.pem; # managed by Certbot
+    ssl_certificate_key /etc/letsencrypt/live/yp-foodgram.serveblog.net/privkey.pem; # managed by Certbot
     include /etc/letsencrypt/options-ssl-nginx.conf; # managed by Certbot
     ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem; # managed by Certbot
 
@@ -17,14 +17,14 @@ server {
 }
 
 server {
-    if ($host = yp-foodgram.zapto.org) {
+    if ($host = yp-foodgram.serveblog.net) {
         return 301 https://$host$request_uri;
     } # managed by Certbot
 
 
 
     listen 80;
-    server_name  84.201.137.0 yp-foodgram.zapto.org;
+    server_name  192.144.14.224 yp-foodgram.serveblog.net;
     return 404; # managed by Certbot
 
 
