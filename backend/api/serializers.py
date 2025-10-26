@@ -103,15 +103,13 @@ class RecipeReadSerializer(serializers.ModelSerializer):
 
     def check_user_status_and_recipe_exists(self, model, recipe):
         request = self.context.get('request')
-        # return (
-        #     request
-        #     and model.objects.filter(user=request.user, recipe=recipe).exists()
-        # )
         if not request or not request.user.is_authenticated:
             return False
 
         user_id = request.user.id
-        return model.objects.filter(user_id=user_id, recipe=recipe).exists()
+        return model.objects.filter(
+            user_id=user_id, recipe=recipe
+        ).exists()
 
     def get_is_favorited(self, recipe):
         """Проверить наличие рецепта в избранном."""
