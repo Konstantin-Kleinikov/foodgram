@@ -17,7 +17,7 @@ AUTH_USER_MODEL = 'recipes.FoodgramUser'
 
 ALLOWED_HOSTS = os.getenv(
     'ALLOWED_HOSTS',
-    'localhost,127.0.0.1'
+    'localhost,127.0.0.1,0.0.0.0'
 ).replace(' ', '').split(',')
 
 
